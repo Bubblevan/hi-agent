@@ -64,7 +64,8 @@ class EpisodicMemory(BaseMemory):
             timestamp=memory_item.timestamp,
             importance=memory_item.importance,
             metadata=memory_item.metadata,
-            session_id=session_id
+            session_id=session_id,
+            user_id=memory_item.user_id
         )
 
         if not success:
@@ -102,6 +103,7 @@ class EpisodicMemory(BaseMemory):
         # 第一阶段：数据库粗筛，多取 3 倍候选，保证后续排序后结果质量
         candidates = self.store.query(
             memory_type="episodic",
+            user_id=kwargs.get("user_id"),
             session_id=session_id,
             min_importance=min_importance,
             start_time=start_time,
@@ -138,6 +140,7 @@ class EpisodicMemory(BaseMemory):
         for _, cand in scored[:limit]:
             item = MemoryItem(
                 id=cand["id"],
+                user_id=cand.get("user_id", "default_user"),
                 content=cand["content"],
                 memory_type="episodic",
                 timestamp=datetime.fromisoformat(cand["timestamp"]),
@@ -149,7 +152,8 @@ class EpisodicMemory(BaseMemory):
         return results
     
     def update(self, memory_id: str, content: Optional[str] = None,
-               importance: Optional[float] = None, **kwargs) -> bool:
+               importance: Optional[float] = None,
+               user_id: Optional[str] = None, **kwargs) -> bool:
         """
         更新情景记忆（直接委托存储层执行）
         :param memory_id: 目标记忆 ID
@@ -161,23 +165,24 @@ class EpisodicMemory(BaseMemory):
             memory_id=memory_id,
             content=content,
             importance=importance,
-            metadata=kwargs.get("metadata")
+            metadata=kwargs.get("metadata"),
+            user_id=user_id
         )
     
-    def delete(self, memory_id: str) -> bool:
+    def delete(self, memory_id: str, user_id: Optional[str] = None) -> bool:
         """
         删除单条情景记忆
         :param memory_id: 目标记忆 ID
         :return: 是否删除成功
         """
-        return self.store.delete(memory_id)
+        return self.store.delete(memory_id, user_id=user_id)
     
-    def clear(self) -> int:
+    def clear(self, user_id: Optional[str] = None) -> int:
         """
         清空所有情景记忆
         :return: 被清空的记录条数
         """
-        return self.store.clear(memory_type="episodic")
+        return self.store.clear(memory_type="episodic", user_id=user_id)
     
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -197,7 +202,12 @@ class EpisodicMemory(BaseMemory):
     # 情景记忆特有业务方法
     # ==========================================================
     
-    def get_session_history(self, session_id: str, limit: int = 50) -> List[MemoryItem]:
+    def get_session_history(
+        self,
+        session_id: str,
+        limit: int = 50,
+        user_id: Optional[str] = None
+    ) -> List[MemoryItem]:
         """
         获取单个会话的完整历史记录（按时间正序）
         业务场景：回溯整段对话、会话复盘
@@ -207,6 +217,7 @@ class EpisodicMemory(BaseMemory):
         """
         results = self.store.query(
             memory_type="episodic",
+            user_id=user_id,
             session_id=session_id,
             limit=limit,
             order_by="timestamp ASC"
@@ -228,6 +239,7 @@ class EpisodicMemory(BaseMemory):
         return [
             MemoryItem(
                 id=r["id"],
+                user_id=r.get("user_id", "default_user"),
                 content=r["content"],
                 memory_type="episodic",
                 timestamp=datetime.fromisoformat(r["timestamp"]),
@@ -239,7 +251,8 @@ class EpisodicMemory(BaseMemory):
     
     def get_timeline(self, start_time: Optional[datetime] = None,
                      end_time: Optional[datetime] = None,
-                     limit: int = 50) -> List[MemoryItem]:
+                     limit: int = 50,
+                     user_id: Optional[str] = None) -> List[MemoryItem]:
         """
         按时间线获取事件（默认最近 30 天，倒序排列）
         业务场景：浏览历史记忆时间线、查看近期记录
@@ -256,6 +269,7 @@ class EpisodicMemory(BaseMemory):
         
         results = self.store.query(
             memory_type="episodic",
+            user_id=user_id,
             start_time=start_time,
             end_time=end_time,
             limit=limit,
@@ -266,6 +280,7 @@ class EpisodicMemory(BaseMemory):
         return [
             MemoryItem(
                 id=r["id"],
+                user_id=r.get("user_id", "default_user"),
                 content=r["content"],
                 memory_type="episodic",
                 timestamp=datetime.fromisoformat(r["timestamp"]),

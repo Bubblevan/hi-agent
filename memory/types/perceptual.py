@@ -312,7 +312,8 @@ class PerceptualMemory(BaseMemory):
             timestamp=memory_item.timestamp,
             importance=memory_item.importance,
             metadata=metadata,
-            session_id=session_id
+            session_id=session_id,
+            user_id=memory_item.user_id
         )
         if not success:
             raise RuntimeError(f"感知记忆存储失败: {memory_item.id}")
@@ -324,6 +325,7 @@ class PerceptualMemory(BaseMemory):
                 memory_id=memory_item.id,
                 metadata={
                     "memory_type": "perceptual",
+                    "user_id": memory_item.user_id,
                     "modality": modality,
                     "importance": memory_item.importance,
                     "session_id": session_id
@@ -379,6 +381,7 @@ class PerceptualMemory(BaseMemory):
                         if doc and doc["importance"] >= min_importance:
                             item = MemoryItem(
                                 id=doc["id"],
+                                user_id=doc.get("user_id", "default_user"),
                                 content=doc["content"],
                                 memory_type="perceptual",
                                 timestamp=datetime.fromisoformat(doc["timestamp"]),
@@ -409,6 +412,7 @@ class PerceptualMemory(BaseMemory):
         # ----- 方案 B：关键词检索（兜底降级） -----
         candidates = self.store.query(
             memory_type="perceptual",
+            user_id=kwargs.get("user_id"),
             session_id=session_id,
             min_importance=min_importance,
             limit=limit * 3,
@@ -439,6 +443,7 @@ class PerceptualMemory(BaseMemory):
         for _, cand in scored[:limit]:
             item = MemoryItem(
                 id=cand["id"],
+                user_id=cand.get("user_id", "default_user"),
                 content=cand["content"],
                 memory_type="perceptual",
                 timestamp=datetime.fromisoformat(cand["timestamp"]),
@@ -450,7 +455,8 @@ class PerceptualMemory(BaseMemory):
         return results
     
     def update(self, memory_id: str, content: Optional[str] = None,
-               importance: Optional[float] = None, **kwargs) -> bool:
+               importance: Optional[float] = None,
+               user_id: Optional[str] = None, **kwargs) -> bool:
         """
         更新感知记忆
         支持更新文本描述、重要性，也支持更新关联的文件/原始数据（同步更新向量）
@@ -469,13 +475,14 @@ class PerceptualMemory(BaseMemory):
             memory_id=memory_id,
             content=content,
             importance=importance,
-            metadata=kwargs.get("metadata")
+            metadata=kwargs.get("metadata"),
+            user_id=user_id
         )
         
         # 第二步：如果更新了文件/数据，同步删除旧向量并生成新向量
         if success and (file_path or raw_data) and self._use_vector:
             try:
-                self.vector_store.delete_by_memory_id(memory_id)
+                self.vector_store.delete_by_memory_id(memory_id, user_id=user_id)
                 
                 # 获取最新的元数据
                 doc = self.store.get_by_id(memory_id)
@@ -496,6 +503,7 @@ class PerceptualMemory(BaseMemory):
                             memory_id=memory_id,
                             metadata={
                                 "memory_type": "perceptual",
+                                "user_id": doc.get("user_id", "default_user"),
                                 "modality": mod,
                                 "importance": doc["importance"],
                                 "session_id": meta.get("session_id", "default")
@@ -506,25 +514,28 @@ class PerceptualMemory(BaseMemory):
         
         return success
     
-    def delete(self, memory_id: str) -> bool:
+    def delete(self, memory_id: str, user_id: Optional[str] = None) -> bool:
         """
         删除单条感知记忆（双存储同步删除）
         :param memory_id: 目标记忆 ID
         :return: 是否删除成功
         """
-        success = self.store.delete(memory_id)
+        success = self.store.delete(memory_id, user_id=user_id)
         if success and self._use_vector:
-            self.vector_store.delete_by_memory_id(memory_id)
+            self.vector_store.delete_by_memory_id(memory_id, user_id=user_id)
         return success
     
-    def clear(self) -> int:
+    def clear(self, user_id: Optional[str] = None) -> int:
         """
         清空所有感知记忆（双存储同步清空）
         :return: 被清空的记录条数
         """
-        count = self.store.clear(memory_type="perceptual")
+        count = self.store.clear(memory_type="perceptual", user_id=user_id)
         if self._use_vector:
-            self.vector_store.clear()
+            filter_payload = {"memory_type": "perceptual"}
+            if user_id:
+                filter_payload["user_id"] = user_id
+            self.vector_store.clear(filter_payload=filter_payload)
         return count
     
     def get_stats(self) -> Dict[str, Any]:

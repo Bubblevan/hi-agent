@@ -47,12 +47,14 @@ def test_manager_global_sort_currently_uses_importance_after_module_retrieval(
     manager = MemoryManager(user_id="user_a", enable_working=False)
     relevant = MemoryItem(
         id="relevant",
+        user_id="user_a",
         content="Python related",
         memory_type="fake",
         importance=0.2,
     )
     important = MemoryItem(
         id="important",
+        user_id="user_a",
         content="Unrelated but important",
         memory_type="fake",
         importance=0.9,

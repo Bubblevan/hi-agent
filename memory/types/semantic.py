@@ -84,7 +84,8 @@ class SemanticMemory(BaseMemory):
             timestamp=memory_item.timestamp,
             importance=memory_item.importance,
             metadata=memory_item.metadata,
-            session_id=session_id
+            session_id=session_id,
+            user_id=memory_item.user_id
         )
         
         if not success:
@@ -97,6 +98,7 @@ class SemanticMemory(BaseMemory):
                 memory_id=memory_item.id,
                 metadata={
                     "memory_type": "semantic",
+                    "user_id": memory_item.user_id,
                     "importance": memory_item.importance,
                     "session_id": session_id
                 }
@@ -131,6 +133,8 @@ class SemanticMemory(BaseMemory):
                 
                 # 构造过滤条件：固定 memory_type，可选 session_id
                 filter_payload = {"memory_type": "semantic"}
+                if kwargs.get("user_id"):
+                    filter_payload["user_id"] = kwargs["user_id"]
                 if session_id:
                     filter_payload["session_id"] = session_id
                 
@@ -148,9 +152,17 @@ class SemanticMemory(BaseMemory):
                         mem_id = r["memory_id"]
                         doc = self.store.get_by_id(mem_id)
                         # 二次校验重要性阈值
-                        if doc and doc["importance"] >= min_importance:
+                        if (
+                            doc
+                            and doc["importance"] >= min_importance
+                            and (
+                                not kwargs.get("user_id")
+                                or doc.get("user_id") == kwargs["user_id"]
+                            )
+                        ):
                             item = MemoryItem(
                                 id=doc["id"],
+                                user_id=doc.get("user_id", "default_user"),
                                 content=doc["content"],
                                 memory_type="semantic",
                                 timestamp=datetime.fromisoformat(doc["timestamp"]),
@@ -181,6 +193,7 @@ class SemanticMemory(BaseMemory):
         # 第一步：从 SQLite 按条件粗筛候选集
         candidates = self.store.query(
             memory_type="semantic",
+            user_id=kwargs.get("user_id"),
             session_id=session_id,
             min_importance=min_importance,
             limit=limit * 3,
@@ -205,6 +218,7 @@ class SemanticMemory(BaseMemory):
         for _, cand in scored[:limit]:
             item = MemoryItem(
                 id=cand["id"],
+                user_id=cand.get("user_id", "default_user"),
                 content=cand["content"],
                 memory_type="semantic",
                 timestamp=datetime.fromisoformat(cand["timestamp"]),
@@ -216,7 +230,8 @@ class SemanticMemory(BaseMemory):
         return results
     
     def update(self, memory_id: str, content: Optional[str] = None,
-               importance: Optional[float] = None, **kwargs) -> bool:
+               importance: Optional[float] = None,
+               user_id: Optional[str] = None, **kwargs) -> bool:
         """
         更新语义记忆
         注意：更新内容时需要同步更新向量库，先删旧向量再添加新向量，保证数据一致性
@@ -230,13 +245,14 @@ class SemanticMemory(BaseMemory):
             memory_id=memory_id,
             content=content,
             importance=importance,
-            metadata=kwargs.get("metadata")
+            metadata=kwargs.get("metadata"),
+            user_id=user_id
         )
         # 第二步：如果更新了内容且向量库可用，同步更新向量
         if success and content and self._use_vector:
             try:
                 # 先删除旧向量
-                self.vector_store.delete_by_memory_id(memory_id)
+                self.vector_store.delete_by_memory_id(memory_id, user_id=user_id)
                 # 生成新向量并写入
                 vector = self.embedder.encode(content)[0]
                 doc = self.store.get_by_id(memory_id)
@@ -256,26 +272,29 @@ class SemanticMemory(BaseMemory):
 
         return success
     
-    def delete(self, memory_id: str) -> bool:
+    def delete(self, memory_id: str, user_id: Optional[str] = None) -> bool:
         """
         删除单条语义记忆（双存储同步删除）
         :param memory_id: 目标记忆 ID
         :return: 是否删除成功
         """
-        success = self.store.delete(memory_id)
+        success = self.store.delete(memory_id, user_id=user_id)
         # SQLite 删除成功且向量库可用时，同步删除向量
         if success and self._use_vector:
-            self.vector_store.delete_by_memory_id(memory_id)
+            self.vector_store.delete_by_memory_id(memory_id, user_id=user_id)
         return success
     
-    def clear(self) -> int:
+    def clear(self, user_id: Optional[str] = None) -> int:
         """
         清空所有语义记忆（双存储同步清空）
         :return: 被清空的记录条数
         """
-        count = self.store.clear(memory_type="semantic")
+        count = self.store.clear(memory_type="semantic", user_id=user_id)
         if self._use_vector:
-            self.vector_store.clear()
+            filter_payload = {"memory_type": "semantic"}
+            if user_id:
+                filter_payload["user_id"] = user_id
+            self.vector_store.clear(filter_payload=filter_payload)
         return count
     
     def get_stats(self) -> Dict[str, Any]:

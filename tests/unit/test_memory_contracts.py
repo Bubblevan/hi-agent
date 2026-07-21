@@ -4,7 +4,6 @@ from memory.base import BaseMemory, MemoryConfig, MemoryItem
 from memory.manager import MemoryManager
 
 
-@pytest.mark.xfail(reason="Tenant isolation is only metadata today; CRUD is not enforced.")
 def test_user_a_cannot_retrieve_user_b_working_memory(patch_fake_embedder):
     manager_a = MemoryManager(user_id="user_a", enable_working=True)
     manager_b = MemoryManager(user_id="user_b", enable_working=True)
@@ -21,6 +20,7 @@ def test_user_a_cannot_retrieve_user_b_working_memory(patch_fake_embedder):
 
     results = manager_a.retrieve_memories("coffee", limit=5)
     assert all(item.metadata["user_id"] == "user_a" for item in results)
+    assert "Bob likes coffee" not in [item.content for item in results]
 
 
 @pytest.mark.xfail(reason="Manager currently re-sorts merged results by importance only.")
@@ -28,12 +28,14 @@ def test_cross_memory_retrieval_prefers_relevance_over_importance(patch_fake_emb
     manager = MemoryManager(user_id="user_a", enable_working=False)
     relevant = MemoryItem(
         id="relevant",
+        user_id="user_a",
         content="Python related",
         memory_type="fake",
         importance=0.2,
     )
     important = MemoryItem(
         id="important",
+        user_id="user_a",
         content="Unrelated but important",
         memory_type="fake",
         importance=0.9,

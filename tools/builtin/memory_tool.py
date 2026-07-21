@@ -364,7 +364,12 @@ class MemoryTool(MyTool):
             updated = False
             for mem_type in self.manager.memory_types.values():
                 if hasattr(mem_type, 'update'):
-                    if mem_type.update(memory_id, content=content, importance=importance):
+                    if mem_type.update(
+                        memory_id,
+                        content=content,
+                        importance=importance,
+                        user_id=self.user_id,
+                    ):
                         updated = True
                         break
             if updated:
@@ -384,7 +389,7 @@ class MemoryTool(MyTool):
             deleted = False
             for mem_type in self.manager.memory_types.values():
                 if hasattr(mem_type, 'delete'):
-                    if mem_type.delete(memory_id):
+                    if mem_type.delete(memory_id, user_id=self.user_id):
                         deleted = True
                         break
             if deleted:

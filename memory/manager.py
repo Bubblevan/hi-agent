@@ -114,10 +114,11 @@ class MemoryManager:
         # 统一构建标准记忆条目对象
         # 设计考量：所有记忆类型都使用 MemoryItem 统一数据结构，保证跨类型数据兼容
         item = MemoryItem(
+            user_id=self.user_id,
             content=content,
             memory_type=memory_type,
             importance=importance,
-            metadata=metadata or {}
+            metadata={**(metadata or {}), "user_id": self.user_id}
         )
 
         # 分发到对应记忆类型的 add 方法执行实际存储
@@ -166,6 +167,7 @@ class MemoryManager:
                     limit=limit,
                     min_importance=min_importance,
                     session_id=session_id,
+                    user_id=self.user_id,
                     **kwargs
                 )
             else:
@@ -173,8 +175,10 @@ class MemoryManager:
                     query=query,
                     limit=limit,
                     min_importance=min_importance,
+                    user_id=self.user_id,
                     **kwargs
                 )
+            results = [item for item in results if item.user_id == self.user_id]
             all_results.extend(results)
 
         # 全局统一排序：按重要性降序，保证返回最相关/最重要的记忆
@@ -247,12 +251,15 @@ class MemoryManager:
         candidates = self.memory_types[from_type].retrieve(
             query="",
             limit=1000,
-            min_importance=importance_threshold
+            min_importance=importance_threshold,
+            user_id=self.user_id
         )
 
         consolidated = 0
         for item in candidates:
             # 透传到目标记忆类型
+            item.user_id = self.user_id
+            item.metadata["user_id"] = self.user_id
             self.memory_types[to_type].add(item)
             consolidated += 1
 
@@ -273,7 +280,11 @@ class MemoryManager:
         if 'episodic' not in self.memory_types:
             print("⚠️ 情景记忆未启用")
             return []
-        return self.memory_types['episodic'].get_session_history(session_id, limit)
+        return self.memory_types['episodic'].get_session_history(
+            session_id,
+            limit,
+            user_id=self.user_id
+        )
 
     def get_timeline(self, days: int = 30, limit: int = 50) -> List[MemoryItem]:
         """
@@ -288,7 +299,12 @@ class MemoryManager:
         from datetime import datetime, timedelta
         end_time = datetime.now()
         start_time = end_time - timedelta(days=days)
-        return self.memory_types['episodic'].get_timeline(start_time, end_time, limit)
+        return self.memory_types['episodic'].get_timeline(
+            start_time,
+            end_time,
+            limit,
+            user_id=self.user_id
+        )
     
     def clear_all(self, memory_type: Optional[str] = None) -> int:
         """
@@ -300,11 +316,11 @@ class MemoryManager:
         if memory_type:
             # 清空指定类型
             if memory_type in self.memory_types:
-                total = self.memory_types[memory_type].clear()
+                total = self.memory_types[memory_type].clear(user_id=self.user_id)
         else:
             # 清空所有已启用类型
             for mem_type in self.memory_types.values():
-                total += mem_type.clear()
+                total += mem_type.clear(user_id=self.user_id)
         return total
     
     def get_stats(self) -> Dict[str, Any]:

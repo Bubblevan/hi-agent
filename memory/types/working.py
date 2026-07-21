@@ -113,6 +113,9 @@ class WorkingMemory(BaseMemory):
         # 3. 遍历所有记忆，计算综合评分
         scored = []
         for item in self._items:
+            user_id = kwargs.get("user_id")
+            if user_id and item.user_id != user_id:
+                continue
             # 先过滤低于重要性阈值的条目，减少后续计算
             if item.importance < min_importance:
                 continue
@@ -142,7 +145,8 @@ class WorkingMemory(BaseMemory):
         return [item for _, item in scored[:limit]]
     
     def update(self, memory_id: str, content: Optional[str] = None,
-               importance: Optional[float] = None, **kwargs) -> bool:
+               importance: Optional[float] = None,
+               user_id: Optional[str] = None, **kwargs) -> bool:
         """
         更新指定记忆的内容或重要性
         :param memory_id: 目标记忆 ID
@@ -151,6 +155,8 @@ class WorkingMemory(BaseMemory):
         :return: 是否更新成功
         """
         for item in self._items:
+            if user_id and item.user_id != user_id:
+                continue
             if item.id == memory_id:
                 # 更新内容：同步刷新嵌入向量和时间戳
                 if content is not None:
@@ -168,25 +174,31 @@ class WorkingMemory(BaseMemory):
                 return True
         return False
     
-    def delete(self, memory_id: str) -> bool:
+    def delete(self, memory_id: str, user_id: Optional[str] = None) -> bool:
         """
         根据 ID 删除单条记忆
         :param memory_id: 目标记忆 ID
         :return: 是否删除成功
         """
         for i, item in enumerate(self._items):
+            if user_id and item.user_id != user_id:
+                continue
             if item.id == memory_id:
                 self._items.pop(i)
                 return True
         return False
     
-    def clear(self) -> int:
+    def clear(self, user_id: Optional[str] = None) -> int:
         """
         清空所有工作记忆
         :return: 被清除的记忆条数
         """
-        count = len(self._items)
-        self._items.clear()
+        if user_id is None:
+            count = len(self._items)
+            self._items.clear()
+            return count
+        count = len([item for item in self._items if item.user_id == user_id])
+        self._items = [item for item in self._items if item.user_id != user_id]
         return count
     
     def get_stats(self) -> Dict[str, Any]:

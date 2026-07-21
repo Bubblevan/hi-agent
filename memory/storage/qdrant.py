@@ -239,7 +239,7 @@ class QdrantVectorStore:
             print(f"Qdrant 搜索失败: {e}")
             return []
         
-    def delete_by_memory_id(self, memory_id: str) -> bool:
+    def delete_by_memory_id(self, memory_id: str, user_id: Optional[str] = None) -> bool:
         """
         根据关联的记忆 ID 删除对应向量
         设计说明：Qdrant 不支持直接按 payload 字段删除，所以分两步：
@@ -253,11 +253,12 @@ class QdrantVectorStore:
         
         try:
             # scroll：按过滤条件遍历查询点，返回 (点列表, 下一页游标)
+            must = [FieldCondition(key="memory_id", match=MatchValue(value=memory_id))]
+            if user_id:
+                must.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))
             points = self.client.scroll(
                 collection_name=self.collection_name,
-                scroll_filter=Filter(
-                    must=[FieldCondition(key="memory_id", match=MatchValue(value=memory_id))]
-                ),
+                scroll_filter=Filter(must=must),
                 limit=100
             )
             # points[0] 是匹配到的点列表，points[1] 是分页游标
@@ -274,7 +275,7 @@ class QdrantVectorStore:
             print(f"Qdrant 删除失败: {e}")
             return False
         
-    def clear(self) -> int:
+    def clear(self, filter_payload: Optional[Dict[str, Any]] = None) -> int:
         """
         清空所有向量（删除集合后重建）
         选择删集合重建而非逐条删除，性能更高、更彻底
@@ -284,6 +285,16 @@ class QdrantVectorStore:
             return 0
         
         try:
+            if filter_payload:
+                conditions = [
+                    FieldCondition(key=key, match=MatchValue(value=value))
+                    for key, value in filter_payload.items()
+                ]
+                self.client.delete(
+                    collection_name=self.collection_name,
+                    points_selector=Filter(must=conditions)
+                )
+                return 1
             self.client.delete_collection(self.collection_name)
             self._ensure_collection()  # 重建空集合
             return 1

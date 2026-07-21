@@ -77,6 +77,7 @@ class SQLiteDocumentStore:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS memories (
                     id TEXT PRIMARY KEY,          -- 记忆唯一ID，上层生成UUID，字符串类型
+                    user_id TEXT NOT NULL DEFAULT 'default_user',
                     content TEXT NOT NULL,       -- 记忆文本内容
                     memory_type TEXT NOT NULL,   -- 记忆类型：working/episodic/semantic/perceptual
                     timestamp TEXT NOT NULL,     -- 业务时间戳（记忆发生时间），ISO格式字符串
@@ -89,9 +90,26 @@ class SQLiteDocumentStore:
                 )
             """)
 
+            cursor.execute("PRAGMA table_info(memories)")
+            columns = {row[1] for row in cursor.fetchall()}
+            if "user_id" not in columns:
+                cursor.execute(
+                    "ALTER TABLE memories ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default_user'"
+                )
+
             # ---------- 索引设计：加速高频查询 ----------
             # 索引原则：只给经常出现在 WHERE/ORDER BY 中的字段建索引
             # 注意：索引会加快查询，但会减慢写入、占用磁盘，并非越多越好
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_id
+                ON memories(user_id)
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_memory_type
+                ON memories(user_id, memory_type)
+            """)
+
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_memory_type 
                 ON memories(memory_type)
@@ -135,7 +153,8 @@ class SQLiteDocumentStore:
                importance: float = 0.5,
                metadata: Optional[Dict[str, Any]] = None,
                embedding_id: Optional[str] = None,
-               session_id: Optional[str] = None) -> bool:
+               session_id: Optional[str] = None,
+               user_id: str = "default_user") -> bool:
         """
         插入一条记忆
         :param memory_id: 记忆唯一ID
@@ -168,10 +187,10 @@ class SQLiteDocumentStore:
                 # =====================================================================
                 cursor.execute("""
                     INSERT INTO memories 
-                    (id, content, memory_type, timestamp, importance, 
+                    (id, user_id, content, memory_type, timestamp, importance, 
                      metadata, embedding_id, session_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (memory_id, content, memory_type, timestamp_str, 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (memory_id, user_id, content, memory_type, timestamp_str, 
                       importance, metadata_json, embedding_id, session_id))
                 conn.commit()
                 return True
@@ -199,6 +218,7 @@ class SQLiteDocumentStore:
     def query(
         self,
         memory_type: Optional[str] = None,
+        user_id: Optional[str] = None,
         session_id: Optional[str] = None,
         min_importance: float = 0.0,
         start_time: Optional[datetime] = None,
@@ -227,6 +247,10 @@ class SQLiteDocumentStore:
         if memory_type:
             conditions.append("memory_type = ?")
             params.append(memory_type)
+
+        if user_id:
+            conditions.append("user_id = ?")
+            params.append(user_id)
         
         if session_id:
             conditions.append("session_id = ?")
@@ -281,7 +305,8 @@ class SQLiteDocumentStore:
         content: Optional[str] = None,
         importance: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        embedding_id: Optional[str] = None
+        embedding_id: Optional[str] = None,
+        user_id: Optional[str] = None
     ) -> bool:
         """
         部分字段更新（只更新传入的字段，其他字段保持不变）
@@ -321,8 +346,13 @@ class SQLiteDocumentStore:
         # 手动更新 updated_at（与触发器双重保险）
         updates.append("updated_at = CURRENT_TIMESTAMP")
         params.append(memory_id)
+        if user_id:
+            params.append(user_id)
         
-        query = f"UPDATE memories SET {', '.join(updates)} WHERE id = ?"
+        where_clause = "id = ?"
+        if user_id:
+            where_clause += " AND user_id = ?"
+        query = f"UPDATE memories SET {', '.join(updates)} WHERE {where_clause}"
         
         try:
             with self._get_connection() as conn:
@@ -335,7 +365,7 @@ class SQLiteDocumentStore:
             print(f"SQLite 更新失败: {e}")
             return False
         
-    def delete(self, memory_id: str) -> bool:
+    def delete(self, memory_id: str, user_id: Optional[str] = None) -> bool:
         """
         根据 ID 删除单条记忆（硬删除）
         :param memory_id: 目标记忆ID
@@ -344,7 +374,13 @@ class SQLiteDocumentStore:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+                if user_id:
+                    cursor.execute(
+                        "DELETE FROM memories WHERE id = ? AND user_id = ?",
+                        (memory_id, user_id),
+                    )
+                else:
+                    cursor.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
                 conn.commit()
                 return cursor.rowcount > 0
         except Exception as e:
@@ -367,7 +403,7 @@ class SQLiteDocumentStore:
             print(f"SQLite 批量删除失败: {e}")
             return 0
         
-    def clear(self, memory_type: Optional[str] = None) -> int:
+    def clear(self, memory_type: Optional[str] = None, user_id: Optional[str] = None) -> int:
         """
         清空记忆数据
         :param memory_type: 指定类型清空，None 则清空全表
@@ -376,8 +412,15 @@ class SQLiteDocumentStore:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                if memory_type:
+                if memory_type and user_id:
+                    cursor.execute(
+                        "DELETE FROM memories WHERE memory_type = ? AND user_id = ?",
+                        (memory_type, user_id),
+                    )
+                elif memory_type:
                     cursor.execute("DELETE FROM memories WHERE memory_type = ?", (memory_type,))
+                elif user_id:
+                    cursor.execute("DELETE FROM memories WHERE user_id = ?", (user_id,))
                 else:
                     cursor.execute("DELETE FROM memories")
                 conn.commit()

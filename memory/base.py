@@ -10,6 +10,7 @@ class MemoryItem(BaseModel):
     """单条记忆的数据结构"""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str = "default_user"
     content: str                      # 记忆内容
     memory_type: str                  # working / episodic / semantic / perceptual
     timestamp: datetime = Field(default_factory=datetime.now)
@@ -104,18 +105,19 @@ class BaseMemory(ABC):
         pass
 
     @abstractmethod
-    def update(self, memory_id: str, content: Optional[str] = None, 
-               importance: Optional[float] = None, **kwargs) -> bool:
+    def update(self, memory_id: str, content: Optional[str] = None,
+               importance: Optional[float] = None,
+               user_id: Optional[str] = None, **kwargs) -> bool:
         """更新记忆，返回是否成功"""
         pass
 
     @abstractmethod
-    def delete(self, memory_id: str) -> bool:
+    def delete(self, memory_id: str, user_id: Optional[str] = None) -> bool:
         """删除记忆，返回是否成功"""
         pass
 
     @abstractmethod
-    def clear(self) -> int:
+    def clear(self, user_id: Optional[str] = None) -> int:
         """清空所有记忆，返回删除数量"""
         pass
 
