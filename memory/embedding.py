@@ -178,10 +178,7 @@ class DashScopeEmbedder(BaseEmbedder):
             else:
                 raise Exception(f"API 调用失败: {response.status_code} - {response.message}")
         except Exception as e:
-            # 异常兜底：打印警告，返回对应维度的零向量
-            # 设计目的：避免单条文本嵌入失败导致整个业务流程崩溃
-            print(f"DashScope 嵌入失败: {e}")
-            return [[0.0] * self.dimension for _ in texts]
+            raise RuntimeError(f"DashScope embedding failed: {e}") from e
 
 # ============================================================
 # 3. 具体实现：本地 Sentence-Transformers 模型
@@ -253,9 +250,7 @@ class LocalTransformerEmbedder(BaseEmbedder):
 
             return embeddings
         except Exception as e:
-            # 异常兜底：返回零向量
-            print(f"本地嵌入失败: {e}")
-            return [[0.0] * self.dimension for _ in texts]
+            raise RuntimeError(f"Local embedding failed: {e}") from e
 
 # ============================================================
 # 4. 兜底方案：TF-IDF 统计向量化

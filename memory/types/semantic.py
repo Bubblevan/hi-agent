@@ -71,6 +71,8 @@ class SemanticMemory(BaseMemory):
         # 1. 生成向量嵌入
         try:
             vector = self.embedder.encode(memory_item.content)[0]
+            if vector is not None and all(value == 0.0 for value in vector):
+                vector = None
         except Exception as e:
             print(f"嵌入生成失败: {e}")
             vector = None
@@ -130,6 +132,8 @@ class SemanticMemory(BaseMemory):
             try:
                 # 生成查询向量
                 query_vector = self.embedder.encode(query)[0]
+                if query_vector is not None and all(value == 0.0 for value in query_vector):
+                    raise RuntimeError("Query embedding returned a zero vector")
                 
                 # 构造过滤条件：固定 memory_type，可选 session_id
                 filter_payload = {"memory_type": "semantic"}
@@ -260,13 +264,16 @@ class SemanticMemory(BaseMemory):
                 self.vector_store.delete_by_memory_id(memory_id, user_id=user_id)
                 # 生成新向量并写入
                 vector = self.embedder.encode(content)[0]
+                if vector is not None and all(value == 0.0 for value in vector):
+                    vector = None
                 doc = self.store.get_by_id(memory_id)
-                if doc:
+                if doc and vector:
                     self.vector_store.add_vector(
                         vector=vector,
                         memory_id=memory_id,
                         metadata={
                             "memory_type": "semantic",
+                            "user_id": doc.get("user_id", "default_user"),
                             "importance": doc["importance"],
                             "session_id": doc.get("session_id", "default")
                         }

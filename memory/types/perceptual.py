@@ -300,6 +300,8 @@ class PerceptualMemory(BaseMemory):
                 else:
                     # 纯文本描述，走文本编码
                     vector = self._encode_modality("text", memory_item.content)
+                if vector is not None and all(value == 0.0 for value in vector):
+                    vector = None
             except Exception as e:
                 print(f"警告：向量编码失败: {e}")
 
@@ -359,6 +361,8 @@ class PerceptualMemory(BaseMemory):
             try:
                 # 用文本嵌入生成查询向量，和多模态向量做相似度计算
                 query_vector = self.text_embedder.encode(query)[0]
+                if query_vector is not None and all(value == 0.0 for value in query_vector):
+                    raise RuntimeError("Query embedding returned a zero vector")
                 
                 # 构造过滤条件
                 filter_payload = {"memory_type": "perceptual"}
@@ -500,6 +504,8 @@ class PerceptualMemory(BaseMemory):
                     elif raw_data:
                         vector = self._encode_modality(mod, raw_data)
                     else:
+                        vector = None
+                    if vector is not None and all(value == 0.0 for value in vector):
                         vector = None
                     
                     if vector:

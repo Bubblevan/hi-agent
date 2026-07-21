@@ -91,3 +91,32 @@ def test_embedding_failure_does_not_store_zero_vector(fake_embedder):
     memory.add(MemoryItem(content="Python memory", memory_type="working"))
 
     assert memory._items[0].embedding is None
+
+
+def test_semantic_memory_does_not_index_zero_vector(tmp_path):
+    class ZeroEmbedder:
+        dimension = 3
+
+        def encode(self, texts):
+            return [[0.0, 0.0, 0.0]]
+
+    class RecordingVectorStore:
+        calls = []
+
+        def add_vector(self, **kwargs):
+            self.calls.append(kwargs)
+            return True
+
+    from memory.types.semantic import SemanticMemory
+
+    memory = SemanticMemory(
+        MemoryConfig(database_path=str(tmp_path / "memory.db")),
+        ZeroEmbedder(),
+    )
+    vector_store = RecordingVectorStore()
+    memory.vector_store = vector_store
+    memory._use_vector = True
+
+    memory.add(MemoryItem(content="semantic zero vector", memory_type="semantic"))
+
+    assert vector_store.calls == []
