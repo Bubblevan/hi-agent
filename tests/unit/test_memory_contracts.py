@@ -23,7 +23,6 @@ def test_user_a_cannot_retrieve_user_b_working_memory(patch_fake_embedder):
     assert "Bob likes coffee" not in [item.content for item in results]
 
 
-@pytest.mark.xfail(reason="Manager currently re-sorts merged results by importance only.")
 def test_cross_memory_retrieval_prefers_relevance_over_importance(patch_fake_embedder):
     manager = MemoryManager(user_id="user_a", enable_working=False)
     relevant = MemoryItem(

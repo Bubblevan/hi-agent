@@ -147,6 +147,7 @@ class EpisodicMemory(BaseMemory):
                 importance=cand["importance"],
                 metadata=cand.get("metadata", {})
             )
+            item.metadata["relevance_score"] = self._calculate_relevance(query, cand)
             results.append(item)
         
         return results

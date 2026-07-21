@@ -137,6 +137,7 @@ class WorkingMemory(BaseMemory):
             # 设计：避免重要性完全盖过相关性，仅做小幅调整
             importance_weight = 0.8 + (item.importance * 0.4)
             final_score = base_score * importance_weight
+            item.metadata["relevance_score"] = final_score
 
             scored.append((final_score, item))
 

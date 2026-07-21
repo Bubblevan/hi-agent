@@ -41,7 +41,7 @@ def test_working_memory_capacity_evicts_lowest_importance(patch_fake_embedder):
     assert remaining_ids == {kept_id, new_id}
 
 
-def test_manager_global_sort_currently_uses_importance_after_module_retrieval(
+def test_manager_global_sort_preserves_module_relevance_order(
     patch_fake_embedder,
 ):
     manager = MemoryManager(user_id="user_a", enable_working=False)
@@ -67,6 +67,42 @@ def test_manager_global_sort_currently_uses_importance_after_module_retrieval(
     manager.memory_types["fake"] = StubMemory()
 
     assert [item.id for item in manager.retrieve_memories("Python", limit=2)] == [
-        "important",
         "relevant",
+        "important",
+    ]
+
+
+def test_manager_uses_relevance_score_as_tie_breaker(patch_fake_embedder):
+    manager = MemoryManager(user_id="user_a", enable_working=False)
+    high_score = MemoryItem(
+        id="high_score",
+        user_id="user_a",
+        content="More relevant",
+        memory_type="fake",
+        importance=0.1,
+        metadata={"relevance_score": 0.9},
+    )
+    high_importance = MemoryItem(
+        id="high_importance",
+        user_id="user_a",
+        content="Less relevant",
+        memory_type="fake",
+        importance=0.9,
+        metadata={"relevance_score": 0.2},
+    )
+
+    class FirstStubMemory:
+        def retrieve(self, **kwargs):
+            return [high_score]
+
+    class SecondStubMemory:
+        def retrieve(self, **kwargs):
+            return [high_importance]
+
+    manager.memory_types["first"] = FirstStubMemory()
+    manager.memory_types["second"] = SecondStubMemory()
+
+    assert [item.id for item in manager.retrieve_memories("query", limit=2)] == [
+        "high_score",
+        "high_importance",
     ]

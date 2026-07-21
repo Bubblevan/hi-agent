@@ -11,7 +11,7 @@
 # -----------------------------------------------------------------------------
 
 from typing import Optional, List, Dict, Any
-from .base import MemoryItem, MemoryConfig
+from .base import MemoryItem, MemoryConfig, MemorySearchResult
 from .embedding import get_text_embedder
 
 class MemoryManager:
@@ -154,7 +154,7 @@ class MemoryManager:
         if memory_types is None:
             memory_types = list(self.memory_types.keys())
 
-        all_results = []
+        all_results: List[MemorySearchResult] = []
         for mem_type in memory_types:
             # 跳过未启用/不存在的类型
             if mem_type not in self.memory_types:
@@ -178,13 +178,59 @@ class MemoryManager:
                     user_id=self.user_id,
                     **kwargs
                 )
-            results = [item for item in results if item.user_id == self.user_id]
-            all_results.extend(results)
+            filtered_results = [item for item in results if item.user_id == self.user_id]
+            all_results.extend(
+                self._to_search_results(filtered_results, source=mem_type)
+            )
 
-        # 全局统一排序：按重要性降序，保证返回最相关/最重要的记忆
-        all_results.sort(key=lambda x: x.importance, reverse=True)
+        all_results = self._fuse_search_results(all_results)
         # 截断到指定数量
-        return all_results[:limit]
+        return [result.item for result in all_results[:limit]]
+
+    def _to_search_results(
+        self,
+        items: List[MemoryItem],
+        source: str
+    ) -> List[MemorySearchResult]:
+        results = []
+        for rank, item in enumerate(items, start=1):
+            score = item.metadata.get("relevance_score")
+            if score is None:
+                score = item.metadata.get("vector_score", 0.0)
+            results.append(
+                MemorySearchResult(
+                    item=item,
+                    score=float(score or 0.0),
+                    rank=rank,
+                    source=source,
+                )
+            )
+        return results
+
+    def _fuse_search_results(
+        self,
+        results: List[MemorySearchResult],
+        k: int = 60
+    ) -> List[MemorySearchResult]:
+        fused: Dict[str, MemorySearchResult] = {}
+        scores: Dict[str, float] = {}
+
+        for result in results:
+            existing = fused.get(result.id)
+            if existing is None or result.score > existing.score:
+                fused[result.id] = result
+            scores[result.id] = scores.get(result.id, 0.0) + 1.0 / (k + result.rank)
+
+        return sorted(
+            fused.values(),
+            key=lambda result: (
+                scores[result.id],
+                result.score,
+                result.item.importance,
+                result.item.timestamp,
+            ),
+            reverse=True,
+        )
     
     def forget_memories(
         self,

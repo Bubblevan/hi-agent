@@ -390,6 +390,7 @@ class PerceptualMemory(BaseMemory):
                             )
                             # 保存向量相似度分数到元数据，便于调试
                             item.metadata["vector_score"] = r["score"]
+                            item.metadata["relevance_score"] = r["score"]
                             memory_items.append(item)
                     # =====================================================================
                     # 【语法详解：lambda 匿名函数 + sorted 排序】
@@ -404,7 +405,10 @@ class PerceptualMemory(BaseMemory):
                     # 5. 设计说明：此处用重要性做二次排序，也可改为按 vector_score 排序，
                     #    当前设计兼顾语义相似度与知识重要性，避免低重要性的高相似度结果排在前面
                     # =====================================================================
-                    memory_items.sort(key=lambda x: x.importance, reverse=True)
+                    memory_items.sort(
+                        key=lambda x: x.metadata.get("relevance_score", 0.0),
+                        reverse=True,
+                    )
                     return memory_items[:limit]
             except Exception as e:
                 print(f"警告：向量检索失败，降级关键词: {e}")
@@ -450,6 +454,7 @@ class PerceptualMemory(BaseMemory):
                 importance=cand["importance"],
                 metadata=cand.get("metadata", {})
             )
+            item.metadata["relevance_score"] = self._keyword_match(query, cand["content"])
             results.append(item)
         
         return results

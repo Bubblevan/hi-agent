@@ -33,6 +33,19 @@ class MemoryItem(BaseModel):
         """获取简短摘要"""
         preview = self.content[:50] + "..." if len(self.content) > 50 else self.content
         return f"[{self.memory_type}] {preview} (重要性: {self.importance:.2f})"
+
+
+class MemorySearchResult(BaseModel):
+    """Unified scored retrieval result used when merging memory sources."""
+
+    item: MemoryItem
+    score: float = 0.0
+    rank: int = 0
+    source: str = ""
+
+    @property
+    def id(self) -> str:
+        return self.item.id
     
 # ============================================================
 # 2. 记忆配置 (MemoryConfig) - 系统参数
