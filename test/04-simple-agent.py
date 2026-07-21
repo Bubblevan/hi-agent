@@ -7,7 +7,7 @@ from dotenv import load_dotenv, find_dotenv
 from core.llm_client import MyLLMClient
 from core.config import Config
 from tools.registry import MyToolRegistry
-from tools.calculator import CalculatorTool
+from tools.builtin.calculator import CalculatorTool
 from agents.simple_agent import MySimpleAgent
 
 load_dotenv(find_dotenv())
