@@ -1,0 +1,597 @@
+# 一、Memory 目前还差什么
+
+## P0：进入 RAG 前必须修
+
+### 1. 跨记忆检索把“相关性”弄丢了
+各子模块内部会计算向量相似度、关键词、时间衰减等分数，但 `MemoryManager.retrieve_memories()` 聚合以后，最后只按：
+```python
+all_results.sort(key=lambda x: x.importance, reverse=True)
+```
+重新排序。
+这意味着一条“重要性 0.9、完全不相关”的记忆，可能压过“重要性 0.6、语义高度相关”的记忆。你注释里甚至把“重要性高”写成了“最相关”，这是概念混淆。([GitHub][2])
+建议不要只返回 `MemoryItem`，而是增加统一结果类型：
+```python
+class MemorySearchResult(BaseModel):
+    item: MemoryItem
+    relevance_score: float
+    source_type: str
+    score_components: dict[str, float]
+```
+
+跨类型融合先用简单可靠的 **RRF（Reciprocal Rank Fusion）**，不要急着手调跨模块权重：
+
+```text
+working 排名 + episodic 排名 + semantic 排名
+                ↓
+               RRF
+                ↓
+        importance 只做轻微加权
+```
+### 2. `user_id` 现在不是真正的数据隔离
+MemoryTool 在写入时只是把 `user_id` 放进 metadata，但 SQLite 主表没有 `user_id` 字段、没有用户索引，查询也没有强制附带用户过滤。也就是说，只要两个用户共享同一个数据库文件，就存在检索到彼此长期记忆的风险。
+必须改成一等字段
+所有接口都不要允许调用者随意省略 tenant
+Qdrant payload 也必须写入并强制过滤
+### 3. `consolidate` 目前只是复制，不是记忆巩固
+当前逻辑是找出高重要性记忆，然后直接把原始 `MemoryItem` 传给目标模块：
+```python
+self.memory_types[to_type].add(item)
+```
+
+它没有：
+
+* 修改 `memory_type`
+* 生成新 ID
+* 摘要或抽取事实
+* 记录来源记忆 ID
+* 处理重复执行
+* 处理冲突与更新
+* 标记源记忆已经巩固
+* 提供事务或失败回滚
+
+因此它既可能产生主键冲突，也可能反复复制同一记忆
+建议把它改成明确的 Pipeline：
+
+```text
+候选选择
+→ 聚类/去重
+→ 摘要或事实抽取
+→ 冲突检测
+→ 创建新的目标记忆
+→ provenance 记录来源
+→ 标记源记忆 consolidated_at
+```
+
+最小版本先不用 LLM，做确定性转换：
+
+```python
+new_item = MemoryItem(
+    id=str(uuid.uuid4()),
+    content=source.content,
+    memory_type=to_type,
+    importance=source.importance,
+    metadata={
+        **source.metadata,
+        "consolidated_from": [source.id],
+        "consolidation_version": 1,
+    },
+)
+```
+
+并增加幂等键
+### 4. 遗忘没有成为统一接口契约
+`MemoryManager` 通过 `hasattr(memory, "forget")` 判断子模块是否支持遗忘，但 BaseMemory 并没有强制定义 `forget()`。这会导致某些模块悄悄跳过遗忘，而调用者还以为整个系统执行成功。
+## P1：Memory v0.1 应该完成
+### 5. 嵌入接口没有区分 query 和 document
+DashScope 注释里知道 `query` 与 `document` 的区别，但实际所有调用都固定使用：
+```python
+"text_type": "document"
+```
+此外，嵌入失败会直接返回零向量；这虽然“不崩”，却可能把无效向量写进数据库，使问题从显式故障变成隐蔽召回错误。
+接口应改为
+
+```python
+embed_documents(texts)
+embed_queries(queries)
+```
+
+失败策略建议分级：
+
+* 对工作记忆：允许退化到关键词检索。
+* 对持久化索引：拒绝写入零向量，记录 `index_status=failed`。
+* 对线上查询：返回 degraded 状态和日志，而不是假装正常。
+
+### 6. 语义记忆和教程描述还不一致
+
+教程设计的是 **Qdrant + Neo4j 图检索**；你目前的 SemanticMemory 是 **SQLite + Qdrant**，仓库没有 Neo4j 实现。因此现在更准确的名字其实是“长期向量语义记忆”，还不具备知识图谱和关系推理。
+
+这不是当前必须补的缺陷。
+
+我的建议是：**先明确砍掉 Neo4j，不要为了跟教程一致而加。** 等你有能证明纯向量检索不够的多跳测试数据，再根据 HippoRAG 类方案加入图检索。否则会同时调试 SQLite、Qdrant、Neo4j、实体抽取和 LLM，学习负担非常高。
+
+### 7. 情景记忆还不是教程里的 SQLite + Qdrant
+当前 EpisodicMemory 中没有 Qdrant，主要仍是 SQLite 检索；这可以作为 MVP，但需要在 README 和笔记里写清楚当前真实能力，不要沿用教程的架构描述。
+
+情景记忆优先补的不是向量库，而是：
+* 时间范围查询
+* session 顺序还原
+* 用户隔离
+* 冲突事件和版本更新
+* 按访问次数更新 `last_accessed_at`
+* temporal query 测试
+
+完成这些后再判断向量检索是否必要。
+
+### 8. 感知记忆建议暂时冻结
+目前你已经把四种类型都铺开，但感知记忆真正困难的不是保存图片路径，而是：
+* 图像、文本、音频是否位于同一语义空间
+* OCR/字幕是原始数据还是派生数据
+* 多模态 embedding 维度与语义是否对齐
+* 删除原文件后如何维护记忆一致性
+* 大文件生命周期怎么管理
+所以当前阶段最好把 PerceptualMemory 标记为 `experimental`，不继续投入。先把文本 Memory + RAG 打磨通。
+
+# 二、RAG 应该怎样添加仓库模块
+
+教程把 RAG 放在 `memory/rag/` 下，这对教学叙事方便，但从你的长期仓库结构看，我更推荐让 **Memory 与 Retrieval 平级**。
+
+原因是：
+
+* Memory 管理的是用户和 Agent 的经历，包含更新、冲突、遗忘和隐私。
+* RAG 管理的是外部知识来源，强调文档版本、来源、分块和引用。
+* 两者可以共享 embedding 和 vector store，但不应该共享业务语义。
+
+推荐结构：
+
+```text
+hi-agent/
+├── core/
+│   ├── embeddings/
+│   │   ├── base.py
+│   │   ├── dashscope.py
+│   │   ├── local.py
+│   │   └── fake.py
+│   └── storage/
+│       ├── vector_store.py
+│       └── qdrant.py
+│
+├── memory/
+│   ├── base.py
+│   ├── manager.py
+│   ├── policies/
+│   │   ├── consolidation.py
+│   │   ├── forgetting.py
+│   │   └── conflict.py
+│   └── types/
+│
+├── retrieval/
+│   ├── models.py
+│   ├── loaders/
+│   │   ├── base.py
+│   │   ├── text.py
+│   │   ├── markdown.py
+│   │   └── markitdown.py
+│   ├── splitters/
+│   │   ├── base.py
+│   │   ├── recursive.py
+│   │   └── markdown.py
+│   ├── indexes/
+│   │   ├── base.py
+│   │   ├── sqlite_fts.py
+│   │   └── dense.py
+│   ├── retrievers/
+│   │   ├── sparse.py
+│   │   ├── dense.py
+│   │   ├── hybrid.py
+│   │   └── reranker.py
+│   ├── query/
+│   │   ├── rewrite.py
+│   │   ├── multi_query.py
+│   │   └── hyde.py
+│   ├── context_builder.py
+│   └── pipeline.py
+│
+├── tools/builtin/
+│   ├── memory_tool.py
+│   └── rag_tool.py
+│
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+└── evals/
+    ├── memory/
+    └── rag/
+```
+
+## RAG 的核心数据类型
+```python
+class Document(BaseModel):
+    document_id: str
+    user_id: str
+    namespace: str
+    source: str
+    version: str
+    checksum: str
+    metadata: dict
+
+class Chunk(BaseModel):
+    chunk_id: str
+    document_id: str
+    content: str
+    position: int
+    heading_path: str | None
+    page_number: int | None
+    metadata: dict
+
+class RetrievalResult(BaseModel):
+    chunk: Chunk
+    score: float
+    retriever: str
+    score_components: dict[str, float]
+
+class Answer(BaseModel):
+    content: str
+    citations: list[str]
+    retrieved_chunk_ids: list[str]
+```
+`chunk_id` 要确定性生成：
+```text
+sha256(document_id + version + position + normalized_content)
+```
+这样重复导入同一文档不会制造重复数据。
+
+## RAGTool 最小接口
+```text
+add_text
+add_document
+search
+ask
+delete_document
+reindex_document
+stats
+```
+
+内部把 `search` 和 `ask` 分开：
+
+```text
+search = 只负责检索
+ask = search + context builder + LLM generation
+```
+这样测试检索质量时，不会被 LLM 生成波动干扰。
+
+## 实现顺序不要照教程一次性全做
+### RAG v0：先做可验证的最小纵切面
+
+1. `Document`、`Chunk`
+2. TXT/Markdown loader
+3. 固定规则分块
+4. SQLite FTS5 或 BM25
+5. `search()` 返回 chunk 和分数
+6. ContextBuilder
+7. `ask()` 返回引用
+8. pytest 检索测试
+
+你在 `11-embedding.py` 中写了“有时直接 grep 更高效”，这个判断不应该停留在注释里，应该成为基线实验。
+### RAG v1：再加入 dense retrieval
+```text
+BM25 / FTS
+Dense Embedding + Qdrant
+Hybrid RRF
+```
+必须同时保留 sparse baseline。专有名词、错误码、函数名、数字和精确短语，经常是 BM25/grep 更强。
+### RAG v2：最后才是高级模块
+按顺序加入：
+1. reranker
+2. query rewrite
+3. MQE
+4. HyDE
+5. 语义分块
+6. GraphRAG
+
+**不要一开始就 MarkItDown + Qdrant + MQE + HyDE + Neo4j。** 那样即使效果变好，你也无法判断是哪一层起作用。
+# 四、近两年 Agent Memory 的前沿方向
+## 1. LoCoMo：先学会怎么评价长期记忆
+ACL 2024 的 LoCoMo 提供超长多会话对话，平均约 600 turns、16K tokens、最多 32 个 session，覆盖问答、事件摘要和多模态对话生成；论文发现长上下文和 RAG 虽有提升，但在时间推理等任务上仍明显落后于人类。
+
+对你的价值：直接参考它的数据类型，增加：
+
+* single-hop
+* multi-hop
+* temporal reasoning
+* knowledge update
+* abstention
+
+它比“随机问一句能不能搜出来”更接近真正的 Memory Eval。
+
+## 2. HippoRAG：从向量相似度转向关联式图检索
+
+NeurIPS 2024 的 HippoRAG 将 LLM、知识图谱和 Personalized PageRank 结合，试图模拟海马体索引和关联式长期记忆，重点解决跨文档、多跳知识整合。
+
+对你的价值：它说明以后加入图结构的理由应该是：
+
+> 已经有明确的多跳检索失败案例。
+
+而不是“教程里写了 Neo4j，所以我要装 Neo4j”。
+
+
+## 3. A-MEM：记忆不是孤立文本，而是会演化的链接笔记
+
+NeurIPS 2025 的 A-MEM 借鉴 Zettelkasten，为记忆生成上下文描述、关键词和标签，并动态建立链接和更新记忆网络。
+
+它很适合映射到你的 SemanticMemory：
+
+```text
+content
+summary
+keywords
+tags
+links
+version
+supersedes
+conflicts_with
+derived_from
+```
+
+不过现阶段只需先补 `derived_from`、`supersedes` 和版本字段，不必直接实现完整图网络。
+
+## 4. Reflective Memory Management：写入和检索都需要反思
+
+ACL 2025 的 RMM 把前瞻式反思用于不同粒度的总结，并在检索后进行回看式调整，解决固定记忆写入和固定检索策略不适应不同对话的问题。
+
+对你的价值：对应你现在最薄弱的两个位置：
+
+* `consolidate` 不应只复制。
+* 检索失败后应记录反馈，调整查询或记忆结构。
+
+## 5. Agent Workflow Memory：程序性记忆可能比第四种感知记忆更值得做
+
+ICML 2025 的 Agent Workflow Memory 从过去轨迹中抽取可复用 workflow，在后续类似任务中选择性注入，面向的是“怎么完成任务”，而不仅是“过去发生了什么”。
+
+对于你的 Agent 框架，我认为未来的第五类记忆应该优先是：
+
+```text
+ProceduralMemory / WorkflowMemory
+```
+
+例如：
+
+```yaml
+trigger: 修改数据库 schema
+preconditions:
+  - 检查迁移版本
+steps:
+  - 生成 migration
+  - 执行测试
+  - 验证回滚
+failure_lessons:
+  - 不要直接修改生产表
+version: 3
+```
+这对 coding agent、浏览器 agent、支付 agent，都比“通用感知记忆”更实用。
+
+## 6. MEM1、MemAgent：让模型学习记忆策略
+
+ICLR 2026 的 MEM1 用强化学习让 Agent 在长周期任务中维护紧凑共享状态，目标是以接近常量的记忆开销协同推理和记忆。MemoryAgentBench 则把能力拆为准确检索、测试时学习、长程理解和冲突处理。([OpenReview][13])
+
+MemAgent 则让模型分段读取长文本，并通过 overwrite 策略持续更新固定大小的内部记忆。
+
+这类 RL 路线现在适合阅读和理解，不适合你马上复现。你当前最有价值的工作，仍然是把外部 Memory 系统的状态、数据和评测做干净。
+
+# 六、接下来最合适的 5 个提交
+
+### Commit 1：`test: migrate memory demos to pytest`
+
+* 建立 `tests/unit`、`integration`、`e2e`
+* FakeEmbedder、FakeClock、FakeVectorStore
+* 把现有打印脚本保留到 `examples/`
+
+### Commit 2：`fix: enforce tenant isolation`
+
+* SQLite 增加 `user_id`
+* Qdrant payload 增加 `user_id`
+* 所有 CRUD 强制过滤
+* 加越权测试
+
+### Commit 3：`fix: preserve retrieval relevance scores`
+
+* `MemorySearchResult`
+* 子模块返回统一分数
+* 跨类型 RRF
+* 修复 semantic 内部再次只按 importance 排序的问题
+
+### Commit 4：`feat: deterministic consolidation lifecycle`
+
+* 新 ID
+* provenance
+* deduplication
+* consolidated 状态
+* 幂等测试
+* 明确统一 forget 接口
+
+### Commit 5：`feat: add sparse RAG vertical slice`
+
+只实现：
+
+```text
+Document/Chunk
+Markdown loader
+deterministic splitter
+SQLite FTS/BM25
+RAGTool.search
+ContextBuilder
+citation
+```
+
+做到这里，会第一次拥有一个**测试可重复、架构可解释、效果有 baseline 的 Memory + RAG 小框架**。之后再加 Qdrant hybrid、reranker、MQE、HyDE，学习收益会比现在一次铺四个 Memory 模块高得多。
+
+# 现在的 Memory 到底在解决什么问题
+
+第七章里的普通 Agent 只有对话历史。它可以把最近几轮消息放进 prompt，但这只是临时上下文。程序重启、上下文变长、用户隔几天回来，Agent 就不能稳定知道以前发生过什么。
+
+第八章给 Memory 的定位是：`memory_tool` 负责存储和维护对话中的交互信息，`rag_tool` 负责从外部知识库检索资料，再把重要检索结果写回记忆。教程把两者拆成两个工具，这是一个关键设计：**Memory 存的是交互经历和用户相关信息，RAG 查的是外部文档。** 
+
+放到 Hi-Agent 里，目前这条链路大概是：
+
+```text
+用户输入
+  ↓
+Agent 决定是否调用工具
+  ↓
+MemoryTool.execute(action, ...)
+  ↓
+MemoryManager.add / retrieve / forget / consolidate
+  ↓
+Working / Episodic / Semantic / Perceptual 某一种记忆实现
+  ↓
+内存、SQLite、Qdrant 等存储
+```
+
+你现在最需要重新记住的不是四个类名，而是每条记忆都被包装成一个 `MemoryItem`。它大致包含：
+
+```python
+id
+content
+memory_type
+timestamp
+importance
+metadata
+embedding
+```
+
+其中 `content` 是记忆内容，`memory_type` 决定放到哪类记忆，`timestamp` 用于时间排序和过期判断，`importance` 用于排序、过滤、遗忘和巩固，`metadata` 放 session、user、来源等扩展信息。你仓库里的 `MemoryItem` 就是这个标准结构，默认 `importance=0.5`，范围按注释是 `0.0 ~ 1.0`。
+
+# 四种记忆分别是什么
+
+## Working Memory：当前这次对话里的短期信息
+
+工作记忆对应短期上下文。它适合保存“用户刚才说了什么”“当前任务卡在哪里”“这轮对话里临时决定了什么”。
+
+Hi-Agent 当前的 WorkingMemory 是纯内存列表，不落盘。它有容量上限和 TTL。仓库注释写得很明确：纯内存、容量管控、TTL 自动过期、向量相似度加关键词匹配再加时间衰减；容量满时删除重要性最低的条目。([GitHub][3])
+
+一个例子：
+
+```python
+memory_tool.execute(
+    "add",
+    content="用户这轮正在调试 MemoryTool 的 search 行为",
+    memory_type="working",
+    importance=0.6,
+)
+```
+
+这条记忆适合在当前调试会话里被找回来。它不适合长期保存，因为你下个月再看项目时，这条临时状态大概率没有价值。
+
+当前限制：工作记忆容易测试，但不能证明长期记忆能力。它只证明 Agent 在一个进程里能临时记住内容。
+
+## Episodic Memory：发生过的事件
+
+情景记忆存具体事件。它回答的是“什么时候发生了什么”。
+
+适合保存：
+
+```text
+2026-07-21，我把 Hi-Agent 推到了 5ff0820。
+这次提交新增了 Memory 的四个模块。
+我发现 rag_tool.py 还是空文件。
+```
+
+这类记忆有时间顺序，未来可以做 timeline、session history、学习轨迹回顾。Hi-Agent 的 `MemoryManager` 已经提供了 `get_session_history()` 和 `get_timeline()` 这种面向情景记忆的便捷方法。
+
+当前限制：你现在仓库里的情景记忆更像“带 session_id 的长期文本记录”。它还没有形成真正稳定的事件模型，比如事件类型、来源、版本、是否已处理、是否和旧事件冲突。
+
+## Semantic Memory：沉淀后的事实和知识
+
+语义记忆存比较稳定的事实、偏好、规则、概念。它回答的是“我知道什么”。
+
+例子：
+
+```text
+用户正在学习 Agent 框架。
+用户偏好用真实日志和代码解释概念。
+Hi-Agent 当前参考 Hello-Agents 重写。
+```
+
+这类记忆不一定和某个具体时间强绑定。它更像从多次对话里提炼出的长期事实。
+
+不过这里要小心。第八章教程里的语义记忆设计包含 Qdrant 和 Neo4j，目的是同时支持向量检索和图关系推理；教程架构里还列了 QdrantVectorStore、Neo4jGraphStore 和 SQLiteDocumentStore。 但你当前 Hi-Agent 提交里只有 SQLite 文档存储和 Qdrant 相关文件，没看到 Neo4j 真正落地。也就是说，现在最好把它理解为“长期语义文本记忆”，不要急着把它写成“知识图谱记忆”。
+
+当前限制：如果没有冲突处理，语义记忆会越积越乱。比如先记“用户主要学 Go”，后来又记“用户暂停 Go，主要学 Agent”，检索时系统应该优先返回新事实，而不是把两条都塞给模型。
+
+## Perceptual Memory：图片、音频等多模态输入
+
+感知记忆对应图像、音频、截图、文件等非纯文本输入。教程把它列为四类记忆之一，目标是处理多模态数据。
+
+但对你现在的学习阶段，我建议先把它冻结。因为感知记忆会引入 OCR、图片 embedding、文件路径、原始文件删除、跨模态检索等问题。它不是 Memory 的第一优先级。
+
+# importance、forget、consolidate 是什么
+
+## importance：这条记忆有多值得保留
+
+`importance` 是一个 0 到 1 的数。它不是相似度，也不是时间。它表达“这条记忆本身值不值得被保留”。
+
+例子：
+
+```text
+importance=0.2
+用户刚才说“好的”。
+
+importance=0.6
+用户这轮正在调试 MemoryTool。
+
+importance=0.9
+用户明确要求以后博客写作要保留真实命令、日志和未确认信息。
+```
+
+在 Hi-Agent 当前实现里，`importance` 会参与三类事情：
+
+第一，检索过滤。`min_importance=0.5` 时，低于 0.5 的记忆直接不返回。
+
+第二，容量淘汰。WorkingMemory 满了以后，重要性低的先被删。
+
+第三，遗忘和巩固。低重要性记忆更容易被忘掉，高重要性工作记忆可能被提升为长期记忆。
+
+你现在代码里有一个需要修的点：`MemoryManager.retrieve_memories()` 聚合多个记忆类型后，最后按 `importance` 排序，而不是按各模块算出的相关性排序。注释里也写了“聚合所有结果后按重要性统一排序”。([GitHub][4]) 这会导致一个问题：无关但重要性高的记忆，可能压过相关但重要性一般的记忆。所以我上次说 Commit 3 要修这个。
+
+## forget：主动清掉低价值或过期记忆
+
+遗忘不是 bug，而是 Memory 系统必须有的维护动作。否则 Agent 会保存所有东西，最后检索出来的上下文越来越脏。
+
+Hi-Agent 当前 `MemoryTool` 暴露了 `forget` 参数，包括：
+
+```text
+strategy: importance_based / time_based / hybrid
+threshold: 重要性阈值
+max_age_days: 最大存活天数
+```
+
+这些参数在 `MemoryTool.get_parameters()` 里已经列出来了。([GitHub][5])
+
+三个策略可以这样理解：
+
+```text
+importance_based
+删除 importance 低于 threshold 的记忆。
+
+time_based
+删除超过 max_age_days 的记忆。
+
+hybrid
+同时考虑重要性和时间。
+```
+
+举例：
+
+```python
+memory_tool.execute(
+    "forget",
+    strategy="importance_based",
+    threshold=0.2,
+)
+```
+
+这表示“把重要性低于 0.2 的记忆删掉”。
+
+## consolidate：把短期记忆提升为长期记忆
+
+`consolidate` 可以理解成“记忆巩固”。用户刚说的一句话先进入 WorkingMemory。如果这句话很重要，就把它转成 EpisodicMemory 或 SemanticMemory。
