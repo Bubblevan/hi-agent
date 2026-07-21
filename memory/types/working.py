@@ -14,7 +14,7 @@ import time
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
-from ..base import MemoryItem, MemoryConfig, BaseMemory
+from ..base import ForgetReport, MemoryItem, MemoryConfig, BaseMemory
 from ..embedding import BaseEmbedder
 
 class WorkingMemory(BaseMemory):
@@ -67,6 +67,8 @@ class WorkingMemory(BaseMemory):
         # 容错设计：嵌入失败不抛出异常，仅将 embedding 置为 None，退化为关键词检索
         try:
             memory_item.embedding = self.embedder.encode(memory_item.content)[0]
+            if memory_item.embedding is not None and all(v == 0.0 for v in memory_item.embedding):
+                memory_item.embedding = None
         except Exception:
             memory_item.embedding = None
         
@@ -170,6 +172,8 @@ class WorkingMemory(BaseMemory):
                 # 更新重要性：钳制在 0~1 区间
                 if importance is not None:
                     item.importance = max(0.0, min(1.0, importance))
+                if kwargs.get("metadata") is not None:
+                    item.metadata = kwargs["metadata"]
                 # 更新时间戳：视为"最近活跃"，重置时间衰减
                 item.timestamp = datetime.now()
                 return True
@@ -314,8 +318,9 @@ class WorkingMemory(BaseMemory):
         # 钳制在 [0.1, 1.0] 区间，避免衰减到 0
         return max(0.1, min(1.0, decay))
     
-    def forget(self, strategy: str = "importance_based", 
-               threshold: float = 0.1, max_age_days: int = 30) -> int:
+    def forget(self, strategy: str = "importance_based",
+               threshold: float = 0.1, max_age_days: int = 30,
+               user_id: Optional[str] = None) -> ForgetReport:
         """
         执行主动遗忘，支持三种策略
         :param strategy: 遗忘策略
@@ -326,22 +331,37 @@ class WorkingMemory(BaseMemory):
         :param max_age_days: 最大存活天数，time_based 策略生效
         :return: 本次遗忘删除的记忆条数
         """
-        before = len(self._items)
+        before = len([item for item in self._items if not user_id or item.user_id == user_id])
         
         if strategy == "importance_based":
             # 保留重要性 >= 阈值的记忆
-            self._items = [item for item in self._items if item.importance >= threshold]
+            self._items = [
+                item for item in self._items
+                if (user_id and item.user_id != user_id) or item.importance >= threshold
+            ]
         elif strategy == "time_based":
             # 保留 N 天以内的记忆
             cutoff = datetime.now() - timedelta(days=max_age_days)
-            self._items = [item for item in self._items if item.timestamp > cutoff]
+            self._items = [
+                item for item in self._items
+                if (user_id and item.user_id != user_id) or item.timestamp > cutoff
+            ]
         elif strategy == "capacity_based":
             # 反复移除最低重要性，直到容量符合上限
-            while len(self._items) > self._max_capacity:
+            while len([item for item in self._items if not user_id or item.user_id == user_id]) > self._max_capacity:
                 self._remove_lowest_priority()
         else:
-            print(f"未知遗忘策略: {strategy}")
-            return 0
+            return ForgetReport(
+                memory_type="working",
+                strategy=strategy,
+                skipped_count=before,
+                errors=[f"Unknown forget strategy: {strategy}"],
+            )
         
         # 返回删除的条数
-        return before - len(self._items)
+        after = len([item for item in self._items if not user_id or item.user_id == user_id])
+        return ForgetReport(
+            memory_type="working",
+            strategy=strategy,
+            deleted_count=before - after,
+        )

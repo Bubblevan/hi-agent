@@ -410,12 +410,12 @@ class MemoryTool(MyTool):
         执行主动遗忘
         """
         try:
-            deleted = self.manager.forget_memories(
+            report = self.manager.forget_memories(
                 strategy=strategy,
                 threshold=threshold,
                 max_age_days=max_age_days
             )
-            return f"已遗忘 {deleted} 条记忆 (策略: {strategy})"
+            return f"已遗忘 {report.deleted_count} 条记忆 (策略: {strategy})"
         except Exception as e:
             return f"遗忘记忆失败: {str(e)}"
 

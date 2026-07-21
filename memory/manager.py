@@ -11,7 +11,8 @@
 # -----------------------------------------------------------------------------
 
 from typing import Optional, List, Dict, Any
-from .base import MemoryItem, MemoryConfig, MemorySearchResult
+from datetime import datetime
+from .base import ForgetReport, MemoryItem, MemoryConfig, MemorySearchResult
 from .embedding import get_text_embedder
 
 class MemoryManager:
@@ -238,7 +239,7 @@ class MemoryManager:
         threshold: float = 0.1,
         max_age_days: int = 30,
         memory_type: Optional[str] = None
-    ) -> int:
+    ) -> ForgetReport:
         """
         执行记忆遗忘：清理过期或低价值记忆，控制内存/存储占用
         模仿人类遗忘机制：不重要的、时间久远的记忆优先被遗忘
@@ -252,7 +253,7 @@ class MemoryManager:
         :param memory_type: 指定遗忘的记忆类型，为 None 则对所有已启用类型执行
         :return: 本次被遗忘（删除）的记忆总条数
         """
-        total_deleted = 0
+        total_report = ForgetReport(memory_type="all", strategy=strategy)
 
         # 设计考量：不同记忆类型的遗忘策略差异很大，由各自内部实现，manager 只做调度
         types_to_forget = [memory_type] if memory_type else list(self.memory_types.keys())
@@ -260,15 +261,17 @@ class MemoryManager:
         for mem_type in types_to_forget:
             if mem_type not in self.memory_types:
                 continue
-            if hasattr(self.memory_types[mem_type], 'forget'):
-                deleted = self.memory_types[mem_type].forget(
-                    strategy=strategy,
-                    threshold=threshold,
-                    max_age_days=max_age_days
-                )
-                total_deleted += deleted
+            report = self.memory_types[mem_type].forget(
+                strategy=strategy,
+                threshold=threshold,
+                max_age_days=max_age_days,
+                user_id=self.user_id,
+            )
+            total_report.deleted_count += report.deleted_count
+            total_report.skipped_count += report.skipped_count
+            total_report.errors.extend(report.errors)
 
-        return total_deleted
+        return total_report
     
     def consolidate_memories(
         self,
@@ -303,14 +306,63 @@ class MemoryManager:
 
         consolidated = 0
         for item in candidates:
-            # 透传到目标记忆类型
-            item.user_id = self.user_id
-            item.metadata["user_id"] = self.user_id
-            self.memory_types[to_type].add(item)
+            consolidation_key = self._consolidation_key(item, from_type, to_type)
+            if self._is_already_consolidated(item, consolidation_key):
+                continue
+
+            target_item = MemoryItem(
+                user_id=self.user_id,
+                content=item.content,
+                memory_type=to_type,
+                importance=item.importance,
+                metadata={
+                    **item.metadata,
+                    "user_id": self.user_id,
+                    "provenance": {
+                        "source_id": item.id,
+                        "source_type": from_type,
+                        "consolidated_at": datetime.now().isoformat(),
+                    },
+                    "consolidation_key": consolidation_key,
+                },
+            )
+            self.memory_types[to_type].add(target_item)
+            self._mark_consolidated(item, from_type, to_type, consolidation_key)
             consolidated += 1
 
         print(f"已将 {consolidated} 条记忆从 {from_type} 巩固到 {to_type}")
         return consolidated
+
+    def _consolidation_key(self, item: MemoryItem, from_type: str, to_type: str) -> str:
+        return f"{self.user_id}:{from_type}:{to_type}:{item.id}"
+
+    def _is_already_consolidated(self, item: MemoryItem, consolidation_key: str) -> bool:
+        keys = item.metadata.get("consolidated_keys", [])
+        return consolidation_key in keys
+
+    def _mark_consolidated(
+        self,
+        item: MemoryItem,
+        from_type: str,
+        to_type: str,
+        consolidation_key: str
+    ) -> None:
+        keys = list(item.metadata.get("consolidated_keys", []))
+        if consolidation_key not in keys:
+            keys.append(consolidation_key)
+        item.metadata["consolidated_keys"] = keys
+        item.metadata["consolidated"] = True
+        item.metadata["consolidated_to"] = sorted(
+            set(item.metadata.get("consolidated_to", []) + [to_type])
+        )
+        item.metadata["user_id"] = self.user_id
+
+        source = self.memory_types[from_type]
+        source.update(
+            item.id,
+            metadata=item.metadata,
+            user_id=self.user_id,
+        )
 
     # ==========================================================
     # 情景记忆专属便捷方法

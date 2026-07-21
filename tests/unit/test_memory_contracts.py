@@ -49,28 +49,35 @@ def test_cross_memory_retrieval_prefers_relevance_over_importance(patch_fake_emb
     assert manager.retrieve_memories("Python", limit=2)[0].id == "relevant"
 
 
-@pytest.mark.xfail(reason="BaseMemory does not define a structured forget contract yet.")
 def test_base_memory_requires_forget_contract():
     assert "forget" in BaseMemory.__abstractmethods__
 
 
-@pytest.mark.xfail(reason="Consolidation currently copies source IDs and is not idempotent.")
-def test_repeated_consolidation_is_idempotent(patch_fake_embedder):
+def test_repeated_consolidation_is_idempotent(tmp_path, patch_fake_embedder):
     manager = MemoryManager(
+        config=MemoryConfig(database_path=str(tmp_path / "memory.db")),
         user_id="user_a",
         enable_working=True,
         enable_episodic=True,
     )
-    manager.add_memory("Important Python memory", importance=0.9)
+    source_id = manager.add_memory("Important Python memory", importance=0.9)
 
     first = manager.consolidate_memories()
     second = manager.consolidate_memories()
+    episodic_results = manager.retrieve_memories(
+        "Python",
+        memory_types=["episodic"],
+        limit=5,
+    )
 
     assert first == 1
     assert second == 0
+    assert len(episodic_results) == 1
+    assert episodic_results[0].id != source_id
+    assert episodic_results[0].metadata["provenance"]["source_id"] == source_id
+    assert episodic_results[0].metadata["consolidation_key"].endswith(source_id)
 
 
-@pytest.mark.xfail(reason="Embedding providers can still return zero vectors on failure.")
 def test_embedding_failure_does_not_store_zero_vector(fake_embedder):
     class ZeroEmbedder:
         dimension = 3

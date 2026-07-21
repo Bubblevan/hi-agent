@@ -15,7 +15,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import math
 
-from ..base import MemoryItem, MemoryConfig, BaseMemory
+from ..base import ForgetReport, MemoryItem, MemoryConfig, BaseMemory
 from ..embedding import BaseEmbedder
 from ..storage.document import SQLiteDocumentStore
 
@@ -184,6 +184,44 @@ class EpisodicMemory(BaseMemory):
         :return: 被清空的记录条数
         """
         return self.store.clear(memory_type="episodic", user_id=user_id)
+
+    def forget(self, strategy: str = "importance_based",
+               threshold: float = 0.1, max_age_days: int = 30,
+               user_id: Optional[str] = None) -> ForgetReport:
+        candidates = self.store.query(
+            memory_type="episodic",
+            user_id=user_id,
+            limit=10000,
+        )
+        deleted = 0
+        errors = []
+        cutoff = datetime.now() - timedelta(days=max_age_days)
+
+        for doc in candidates:
+            should_delete = False
+            if strategy == "importance_based":
+                should_delete = doc["importance"] < threshold
+            elif strategy == "time_based":
+                should_delete = datetime.fromisoformat(doc["timestamp"]) <= cutoff
+            elif strategy == "hybrid":
+                should_delete = (
+                    doc["importance"] < threshold
+                    or datetime.fromisoformat(doc["timestamp"]) <= cutoff
+                )
+            else:
+                errors.append(f"Unknown forget strategy: {strategy}")
+                break
+
+            if should_delete and self.store.delete(doc["id"], user_id=user_id):
+                deleted += 1
+
+        return ForgetReport(
+            memory_type="episodic",
+            strategy=strategy,
+            deleted_count=deleted,
+            skipped_count=len(candidates) - deleted,
+            errors=errors,
+        )
     
     def get_stats(self) -> Dict[str, Any]:
         """

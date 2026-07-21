@@ -46,6 +46,16 @@ class MemorySearchResult(BaseModel):
     @property
     def id(self) -> str:
         return self.item.id
+
+
+class ForgetReport(BaseModel):
+    """Structured report returned by every memory forget implementation."""
+
+    memory_type: str
+    strategy: str
+    deleted_count: int = 0
+    skipped_count: int = 0
+    errors: List[str] = Field(default_factory=list)
     
 # ============================================================
 # 2. 记忆配置 (MemoryConfig) - 系统参数
@@ -132,6 +142,17 @@ class BaseMemory(ABC):
     @abstractmethod
     def clear(self, user_id: Optional[str] = None) -> int:
         """清空所有记忆，返回删除数量"""
+        pass
+
+    @abstractmethod
+    def forget(
+        self,
+        strategy: str = "importance_based",
+        threshold: float = 0.1,
+        max_age_days: int = 30,
+        user_id: Optional[str] = None
+    ) -> ForgetReport:
+        """执行遗忘并返回结构化报告"""
         pass
 
     @abstractmethod
