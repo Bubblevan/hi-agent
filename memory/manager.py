@@ -133,6 +133,7 @@ class MemoryManager:
         memory_types: Optional[List[str]] = None,
         min_importance: float = 0.0,
         session_id: Optional[str] = None,
+        min_relevance_score: Optional[float] = None,
         **kwargs
     ) -> List[MemoryItem]:
         """
@@ -141,15 +142,17 @@ class MemoryManager:
           1. 遍历指定的所有记忆类型
           2. 各记忆类型独立执行检索（内部可能是向量检索、关键词匹配、时间排序等）
           3. 聚合所有结果后按重要性统一排序
-          4. 截断到 limit 条返回
+          4. 若设置 min_relevance_score，过滤低分结果（拒答机制）
+          5. 截断到 limit 条返回
 
         :param query: 查询文本
         :param limit: 返回结果的最大数量
         :param memory_types: 指定检索的记忆类型列表，为 None 则检索所有已启用类型
         :param min_importance: 最低重要性阈值，过滤掉低于该值的记忆
         :param session_id: 会话ID过滤（情景记忆专用）
+        :param min_relevance_score: 最低融合相关性分数阈值，用于拒答（None 表示不过滤）
         :param kwargs: 透传给各记忆类型 retrieve 方法的额外参数
-        :return: 按重要性降序排列的记忆条目列表
+        :return: 按融合分数降序排列的记忆条目列表
         """
         # 未指定类型则默认检索所有已启用的记忆类型
         if memory_types is None:
@@ -185,6 +188,18 @@ class MemoryManager:
             )
 
         all_results = self._fuse_search_results(all_results)
+        
+        # 将融合分数写回 metadata，供下游（eval、拒答阈值等）使用
+        for result in all_results:
+            result.item.metadata["relevance_score"] = result.score
+        
+        # 拒答机制：过滤低于阈值的低相关性结果
+        if min_relevance_score is not None:
+            all_results = [
+                result for result in all_results
+                if result.score >= min_relevance_score
+            ]
+        
         # 截断到指定数量
         return [result.item for result in all_results[:limit]]
 
@@ -214,18 +229,27 @@ class MemoryManager:
         k: int = 60
     ) -> List[MemorySearchResult]:
         fused: Dict[str, MemorySearchResult] = {}
-        scores: Dict[str, float] = {}
+        rrf_scores: Dict[str, float] = {}
 
         for result in results:
             existing = fused.get(result.id)
             if existing is None or result.score > existing.score:
                 fused[result.id] = result
-            scores[result.id] = scores.get(result.id, 0.0) + 1.0 / (k + result.rank)
+            rrf_scores[result.id] = rrf_scores.get(result.id, 0.0) + 1.0 / (k + result.rank)
+
+        max_rrf = max(rrf_scores.values(), default=1.0)
+        for memory_id, result in fused.items():
+            raw_score = result.score
+            normalized_rrf = rrf_scores[memory_id] / max_rrf if max_rrf else 0.0
+            fused_score = raw_score * (0.9 + 0.1 * normalized_rrf)
+            result.item.metadata["raw_relevance_score"] = raw_score
+            result.item.metadata["rrf_score"] = normalized_rrf
+            result.score = fused_score
 
         return sorted(
             fused.values(),
             key=lambda result: (
-                scores[result.id],
+                rrf_scores[result.id],
                 result.score,
                 result.item.importance,
                 result.item.timestamp,

@@ -7,6 +7,7 @@ import math
 import statistics
 import tempfile
 import time
+import sys
 from contextlib import contextmanager
 from contextlib import redirect_stdout
 from dataclasses import dataclass, field
@@ -206,6 +207,7 @@ def evaluate_retrieval(
     k_values: tuple[int, ...] = (1, 3, 5),
     min_relevance_score: float | None = None,
     use_fake_embedder: bool = True,
+    debug: bool = False,
 ) -> EvalReport:
     examples = build_retrieval_examples(cases)
     managers: dict[str, Any] = {}
@@ -229,6 +231,7 @@ def evaluate_retrieval(
         stale_failures = 0
         latencies_ms: list[float] = []
         failures: list[dict[str, Any]] = []
+        debug_entries: list[dict[str, Any]] = []
 
         for example in examples:
             manager = manager_factory(example.user_id)
@@ -237,27 +240,45 @@ def evaluate_retrieval(
                 query=example.query,
                 limit=max(k_values),
                 memory_types=example.memory_types,
+                min_relevance_score=min_relevance_score,
             )
             latencies_ms.append((time.perf_counter() - started) * 1000)
 
-            if min_relevance_score is not None:
-                results = [
-                    item for item in results
-                    if item.metadata.get("relevance_score", 0.0) >= min_relevance_score
-                ]
-
+            # 记录 top score 与 retrieved IDs（debug 模式下输出）
+            top_score = (
+                results[0].metadata.get("relevance_score", 0.0)
+                if results
+                else 0.0
+            )
             retrieved_ids = [item_eval_id(item) for item in results]
+            debug_entries.append({
+                "case_id": example.case_id,
+                "query": example.query,
+                "should_abstain": example.should_abstain,
+                "top_score": round(top_score, 3),
+                "retrieved_ids": retrieved_ids[:5],
+            })
             if any(item.user_id != example.user_id for item in results):
                 leakage_queries += 1
                 failures.append({"case_id": example.case_id, "kind": "cross_user_leakage"})
 
+            predicted_abstain = len(results) == 0
+            if predicted_abstain:
+                abstain_predictions += 1
+
             if example.should_abstain:
-                predicted_abstain = len(results) == 0
                 if predicted_abstain:
                     abstain_true_predictions += 1
-                    abstain_predictions += 1
-                elif not results:
-                    abstain_predictions += 1
+                else:
+                    failures.append(
+                        {
+                            "case_id": example.case_id,
+                            "kind": "failed_abstention",
+                            "query": example.query,
+                            "top_score": top_score,
+                            "retrieved_ids": retrieved_ids,
+                        }
+                    )
                 continue
 
             gold = set(example.gold_ids)
@@ -272,9 +293,10 @@ def evaluate_retrieval(
                 failures.append(
                     {
                         "case_id": example.case_id,
-                        "kind": "miss",
+                        "kind": "false_abstention" if predicted_abstain else "miss",
                         "query": example.query,
                         "gold_ids": example.gold_ids,
+                        "top_score": top_score,
                         "retrieved_ids": retrieved_ids,
                     }
                 )
@@ -296,6 +318,33 @@ def evaluate_retrieval(
         positive_count = len(positives) or 1
         abstention_count = len(abstentions) or 1
         query_count = len(examples) or 1
+        pos_scores = [entry["top_score"] for entry in debug_entries if not entry["should_abstain"]]
+        neg_scores = [entry["top_score"] for entry in debug_entries if entry["should_abstain"]]
+        
+        if debug:
+            print("=" * 60, file=sys.stderr)
+            print("DEBUG: Per-example top scores", file=sys.stderr)
+            print("=" * 60, file=sys.stderr)
+            for entry in debug_entries:
+                tag = "ABSTAIN" if entry["should_abstain"] else "POS"
+                print(
+                    f"[{tag}] {entry['case_id']} | top_score={entry['top_score']:.3f} | "
+                    f"query=\"{entry['query']}\" | ids={entry['retrieved_ids']}",
+                    file=sys.stderr,
+                )
+            print("=" * 60, file=sys.stderr)
+            
+            # 按 should_abstain 分组输出 score 分布
+            if pos_scores:
+                print(f"POS scores: min={min(pos_scores):.3f} max={max(pos_scores):.3f} "
+                      f"mean={statistics.mean(pos_scores):.3f} median={statistics.median(pos_scores):.3f}",
+                      file=sys.stderr)
+            if neg_scores:
+                print(f"NEG scores: min={min(neg_scores):.3f} max={max(neg_scores):.3f} "
+                      f"mean={statistics.mean(neg_scores):.3f} median={statistics.median(neg_scores):.3f}",
+                      file=sys.stderr)
+            print(file=sys.stderr)
+        
         metrics: dict[str, float] = {
             "examples": float(len(examples)),
             "positive_examples": float(len(positives)),
@@ -311,6 +360,10 @@ def evaluate_retrieval(
             "stale_memory_error_rate": stale_failures / query_count,
             "p50_latency_ms": percentile(latencies_ms, 50),
             "p95_latency_ms": percentile(latencies_ms, 95),
+            "positive_top_score_mean": statistics.mean(pos_scores) if pos_scores else 0.0,
+            "negative_top_score_mean": statistics.mean(neg_scores) if neg_scores else 0.0,
+            "positive_top_score_p50": statistics.median(pos_scores) if pos_scores else 0.0,
+            "negative_top_score_p50": statistics.median(neg_scores) if neg_scores else 0.0,
         }
         for k in k_values:
             metrics[f"recall@{k}"] = recall_hits[k] / positive_count
@@ -324,7 +377,13 @@ def evaluate_retrieval(
         )
 
 
-def run_fixture_eval(path: str | Path, *, use_fake_embedder: bool = True) -> EvalReport:
+def run_fixture_eval(
+    path: str | Path,
+    *,
+    use_fake_embedder: bool = True,
+    min_relevance_score: float | None = None,
+    debug: bool = False,
+) -> EvalReport:
     from memory.base import MemoryConfig
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
@@ -339,6 +398,8 @@ def run_fixture_eval(path: str | Path, *, use_fake_embedder: bool = True) -> Eva
             load_jsonl(path),
             config,
             use_fake_embedder=use_fake_embedder,
+            min_relevance_score=min_relevance_score,
+            debug=debug,
         )
 
 
@@ -355,6 +416,17 @@ def main() -> None:
         help="Use configured real embedder instead of deterministic fake embedder.",
     )
     parser.add_argument(
+        "--min-relevance-score",
+        type=float,
+        default=None,
+        help="Filter retrieved memories below this fused relevance score.",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Output per-example top scores and score distribution to stderr.",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Show memory initialization logs while running the eval.",
@@ -362,10 +434,20 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.verbose:
-        report = run_fixture_eval(args.fixture, use_fake_embedder=not args.real_embedder)
+        report = run_fixture_eval(
+            args.fixture,
+            use_fake_embedder=not args.real_embedder,
+            min_relevance_score=args.min_relevance_score,
+            debug=args.debug,
+        )
     else:
         with redirect_stdout(io.StringIO()):
-            report = run_fixture_eval(args.fixture, use_fake_embedder=not args.real_embedder)
+            report = run_fixture_eval(
+                args.fixture,
+                use_fake_embedder=not args.real_embedder,
+                min_relevance_score=args.min_relevance_score,
+                debug=args.debug,
+            )
     print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
 
 

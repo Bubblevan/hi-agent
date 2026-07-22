@@ -106,3 +106,27 @@ def test_manager_uses_relevance_score_as_tie_breaker(patch_fake_embedder):
         "high_score",
         "high_importance",
     ]
+
+
+def test_manager_min_relevance_score_filters_low_score_results(patch_fake_embedder):
+    manager = MemoryManager(user_id="user_a", enable_working=False)
+    low_score = MemoryItem(
+        id="low_score",
+        user_id="user_a",
+        content="Low confidence",
+        memory_type="fake",
+        importance=1.0,
+        metadata={"relevance_score": 0.2},
+    )
+
+    class StubMemory:
+        def retrieve(self, **kwargs):
+            return [low_score]
+
+    manager.memory_types["fake"] = StubMemory()
+
+    assert manager.retrieve_memories(
+        "query",
+        limit=1,
+        min_relevance_score=0.3,
+    ) == []

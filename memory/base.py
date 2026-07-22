@@ -81,7 +81,7 @@ class MemoryConfig(BaseModel):
     neo4j_password: Optional[str] = None
     
     # 嵌入服务配置
-    embedding_model: str = "text-embedding-v3"  # 或 sentence-transformers/all-MiniLM-L6-v2
+    embedding_model: str = "qwen3.7-text-embedding"  # 或 sentence-transformers/all-MiniLM-L6-v2
     embedding_provider: str = "dashscope"       # dashscope / local / tfidf
    
     # 通用

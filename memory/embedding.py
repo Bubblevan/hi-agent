@@ -4,13 +4,19 @@ import hashlib
 from typing import List, Optional, Union
 from abc import ABC, abstractmethod
 
+# 自动加载项目根目录的 .env 文件，确保 DASHSCOPE_API_KEY 等环境变量可用
+try:
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv())
+except ImportError:
+    pass
+
 # 尝试导入可选依赖（如果没有安装，会优雅降级）
 try:
-    from dashscope import TextEmbedding
-    from dashscope.common.error import ApiError
-    DASHSCOPE_AVAILABLE = True
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
 except ImportError:
-    DASHSCOPE_AVAILABLE = False
+    OPENAI_AVAILABLE = False
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -106,79 +112,80 @@ class BaseEmbedder(ABC):
         return [vec for _, vec in results]
     
 # ============================================================
-# 2. 具体实现：DashScope（阿里云百炼云端嵌入）
+# 2. 具体实现：DashScope MaaS（阿里云百炼 OpenAI 兼容嵌入）
 # ============================================================
 class DashScopeEmbedder(BaseEmbedder):
     """
-    阿里云 DashScope 文本嵌入服务实现（第一优先级）
+    阿里云百炼 MaaS 文本嵌入服务实现（OpenAI 兼容接口）
     优势：向量质量高、支持长文本、无需本地算力；
     劣势：依赖网络、需要 API Key、有调用成本。
+
+    通过 MaaS Platform 的 OpenAI 兼容接口调用 qwen 系列嵌入模型，
+    base_url 格式：https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
     """
+
+    # qwen3.7-text-embedding 输出维度
+    DEFAULT_DIMENSION = 1024
 
     def __init__(
         self, 
         api_key: Optional[str] = None,
-        model: str = "text-embedding-v3",
-        dimension: int = 1024  # text-embedding-v3 默认输出维度为 1024
+        model: str = "qwen3.7-text-embedding",
+        dimension: int = DEFAULT_DIMENSION,
+        base_url: Optional[str] = None
     ):
         """
-        初始化 DashScope 嵌入器
-        :param api_key: API 密钥，优先级：传参 > 环境变量DASHSCOPE_API_KEY > 环境变量EMBED_API_KEY
-        :param model: 嵌入模型名称，默认 text-embedding-v3
+        初始化 DashScope MaaS 嵌入器（OpenAI 兼容）
+        :param api_key: API 密钥，优先级：传参 > 环境变量 DASHSCOPE_API_KEY
+        :param model: 嵌入模型名称，默认 qwen3.7-text-embedding
         :param dimension: 向量维度，需与所选模型匹配
+        :param base_url: MaaS 接口地址，优先级：传参 > 环境变量 DASHSCOPE_BASE_URL
         """
         super().__init__(dimension=dimension)
         self.model = model
 
-        # 多级获取 API Key：支持代码传入、两种环境变量名，适配不同部署规范
+        # 多级获取 API Key
         self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY") or os.getenv("EMBED_API_KEY")
-        
-        # 前置校验：无 Key 直接抛出，避免调用时才报错
+
+        # 前置校验：无 Key 直接抛出
         if not self.api_key:
             raise ValueError("DashScope API Key 未找到，请设置 DASHSCOPE_API_KEY 或 EMBED_API_KEY")
-        
-        # 前置校验：未安装 SDK 直接抛出
-        if not DASHSCOPE_AVAILABLE:
-            raise ImportError("❌ dashscope 库未安装，请运行: pip install dashscope")
-        
-        # 设置 SDK 全局密钥
-        import dashscope
-        dashscope.api_key = self.api_key
-        
-        print(f"DashScope 嵌入器已初始化 (模型: {self.model}, 维度: {self.dimension})")
-    
+
+        # 前置校验：openai 库是否安装
+        if not OPENAI_AVAILABLE:
+            raise ImportError("❌ openai 库未安装，请运行: pip install openai")
+
+        # 多级获取 base_url
+        self.base_url = base_url or os.getenv("DASHSCOPE_BASE_URL")
+        if not self.base_url:
+            raise ValueError(
+                "DashScope MaaS base_url 未配置，请设置环境变量 DASHSCOPE_BASE_URL，\n"
+                "格式: https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+            )
+
+        # 初始化 OpenAI 兼容客户端
+        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+
+        print(f"DashScope MaaS 嵌入器已初始化 (模型: {self.model}, 维度: {self.dimension})")
+
     def encode(self, texts: List[str]) -> List[List[float]]:
         """
-        调用 DashScope 官方 API 批量生成向量
+        通过 OpenAI 兼容接口批量生成向量
         :param texts: 文本列表
         :return: 二维向量列表
         """
-        # 空输入快速返回，避免无效 API 调用
         if not texts:
             return []
-        
+
         try:
-            # 调用文本嵌入接口
-            # text_type 参数说明：
-            #   - document：针对文档/知识库片段优化，适合检索场景的召回侧
-            #   - query：针对用户查询优化，适合检索场景的查询侧
-            response = TextEmbedding.call(
+            response = self.client.embeddings.create(
                 model=self.model,
                 input=texts,
-                parameters={
-                    "text_type": "document"
-                }
             )
-            # 请求成功，解析返回结果
-            if response.status_code == 200:
-                embeddings = []
-                for item in response.output.get("embeddings", []):
-                    embeddings.append(item.get("embedding", []))
-                return embeddings
-            else:
-                raise Exception(f"API 调用失败: {response.status_code} - {response.message}")
+            embeddings = [item.embedding for item in response.data]
+            return embeddings
         except Exception as e:
-            raise RuntimeError(f"DashScope embedding failed: {e}") from e
+            raise RuntimeError(f"DashScope MaaS embedding failed: {e}") from e
 
 # ============================================================
 # 3. 具体实现：本地 Sentence-Transformers 模型
@@ -378,17 +385,19 @@ def get_text_embedder(
     env_provider = os.getenv("EMBED_PROVIDER") or os.getenv("EMBED_MODEL_TYPE")
     env_api_key = os.getenv("EMBED_API_KEY") or os.getenv("DASHSCOPE_API_KEY")
     env_model = os.getenv("EMBED_MODEL_NAME")
+    env_base_url = os.getenv("DASHSCOPE_BASE_URL")
     
     # 配置优先级：函数传参 > 环境变量 > 默认值 auto
     provider = provider or env_provider or "auto"
     
-    # ---------- 第1级：尝试云端 DashScope ----------
+    # ---------- 第1级：尝试云端 DashScope MaaS ----------
     if provider in ["dashscope", "auto"]:
         try:
             embedder = DashScopeEmbedder(
                 api_key=api_key or env_api_key,
-                model=model_name or env_model or "text-embedding-v3",
-                dimension=dimension or 1024
+                model=model_name or env_model or "qwen3.7-text-embedding",
+                dimension=dimension or DashScopeEmbedder.DEFAULT_DIMENSION,
+                base_url=env_base_url
             )
             return embedder
         except Exception as e:

@@ -18,3 +18,16 @@ def test_memory_retrieval_eval_reports_core_metrics(memory_config, memory_cases)
     assert "mrr" in report.metrics
     assert "ndcg@5" in report.metrics
     assert "p95_latency_ms" in report.metrics
+    assert "positive_top_score_mean" in report.metrics
+    assert "negative_top_score_mean" in report.metrics
+
+
+def test_memory_retrieval_eval_threshold_enables_abstention(memory_config, memory_cases):
+    report = evaluate_retrieval(
+        memory_cases,
+        memory_config,
+        min_relevance_score=0.3,
+    )
+
+    assert report.metrics["abstention_recall"] > 0.0
+    assert any(failure["kind"] == "failed_abstention" for failure in report.failures)

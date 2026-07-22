@@ -1,3 +1,10 @@
+"""Trace-only evaluator for memory tool-call behavior.
+
+This module scores recorded traces. It does not execute SimpleAgent, call an
+LLM, or record live tool calls. A future agent runner can convert real agent
+runs into this trace format and reuse the same scoring logic.
+"""
+
 from __future__ import annotations
 
 import argparse
