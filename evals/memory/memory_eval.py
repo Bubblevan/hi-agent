@@ -12,8 +12,9 @@ from contextlib import contextmanager
 from contextlib import redirect_stdout
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable
 
+from core.embeddings.fake import FakeEmbedder
 
 @dataclass
 class RetrievalExample:
@@ -40,24 +41,6 @@ class EvalReport:
             "examples_count": self.examples_count,
             "failures": self.failures,
         }
-
-
-class DeterministicFakeEmbedder:
-    """Deterministic local embedder for evals without external API calls."""
-
-    dimension = 16
-
-    def encode(self, texts: str | Iterable[str]) -> list[list[float]]:
-        if isinstance(texts, str):
-            texts = [texts]
-        return [self._encode_one(text) for text in texts]
-
-    def _encode_one(self, text: str) -> list[float]:
-        buckets = [0.0] * self.dimension
-        for index, ch in enumerate((text or "").lower()):
-            buckets[(ord(ch) + index) % self.dimension] += 1.0
-        norm = math.sqrt(sum(value * value for value in buckets)) or 1.0
-        return [value / norm for value in buckets]
 
 
 def load_jsonl(path: str | Path) -> list[dict[str, Any]]:
@@ -118,7 +101,7 @@ def patched_embedder(enabled: bool = True):
     import memory.manager as manager_module
 
     original = manager_module.get_text_embedder
-    manager_module.get_text_embedder = lambda: DeterministicFakeEmbedder()
+    manager_module.get_text_embedder = lambda: FakeEmbedder()
     try:
         yield
     finally:

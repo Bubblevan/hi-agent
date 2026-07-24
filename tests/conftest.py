@@ -1,27 +1,9 @@
 import json
-import math
 from pathlib import Path
 
 import pytest
 
-
-class FakeEmbedder:
-    """Small deterministic embedder for memory tests."""
-
-    dimension = 16
-
-    def encode(self, texts):
-        if isinstance(texts, str):
-            texts = [texts]
-        return [self._vector_for(text) for text in texts]
-
-    def _vector_for(self, text):
-        buckets = [0.0] * self.dimension
-        for index, ch in enumerate((text or "").lower()):
-            bucket = (ord(ch) + index) % self.dimension
-            buckets[bucket] += 1.0
-        norm = math.sqrt(sum(value * value for value in buckets)) or 1.0
-        return [value / norm for value in buckets]
+from core.embeddings.fake import FakeEmbedder
 
 
 @pytest.fixture
