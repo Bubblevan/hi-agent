@@ -1,44 +1,50 @@
+"""
+retrieval/loaders/markitdown.py
+
+å¤šæ ¼å¼ç»Ÿä¸€åŠ è½½å™¨ã€‚
+å†…éƒ¨å§”æ‰˜ç»™ markitdown åº“å°†å„ç§æ ¼å¼è½¬æ¢ä¸º Markdownï¼Œå†å°è£…ä¸º Documentã€‚
+å¯¹äºçº¯ä»£ç æ–‡ä»¶ï¼Œç›´æ¥åŒ…è£…ä¸º Markdown ä»£ç å—ï¼›å¯¹äºéŸ³é¢‘ç­‰æš‚ä¸æ”¯æŒçš„æ ¼å¼ï¼ŒæŠ¥é”™æç¤ºã€‚
+"""
+
+from pathlib import Path
+from typing import Union
+
 from .base import BaseLoader
 from retrieval.models import Document
-from pathlib import Path
+
 
 class MarkitdownLoader(BaseLoader):
     """
-    ¶à¸ñÊ½Í³Ò»¼ÓÔØÆ÷¡£ÄÚ²¿Î¯ÍĞ¸ø markitdown ¿â×ª»»£¬ÔÙ×ß MarkdownLoader Âß¼­¡£
+    å¤šæ ¼å¼ç»Ÿä¸€åŠ è½½å™¨ã€‚
 
-    Ö§³Ö¸ñÊ½£¨°´À©Õ¹Ãû·Ö·¢£©£º
-      - ÎÄµµ: .pdf .docx .pptx .xlsx .html .xml
-      - Í¼Æ¬: .png .jpg .jpeg .gif .bmp£¨OCR ÌáÈ¡ÎÄ×Ö£©
-      - ÒôÆµ: .mp3 .wav .m4a£¨ĞèÒª whisper ÌáÈ¡×ªÂ¼ÎÄ±¾£©
-      - ´úÂë: .py .js .ts .go .rs .java µÈ£¨±£ÁôÓï·¨¸ßÁÁµÄ´úÂë¿é£©
-      - ¶µµ×: ËùÓĞÎ´Öª¸ñÊ½³¢ÊÔ markitdown µÄÍ¨ÓÃ×ª»»
+    æ”¯æŒæ ¼å¼ï¼ˆå¯é€šè¿‡æ³¨å†Œè¡¨æ‰©å±•ï¼‰ï¼š
+      - æ–‡æ¡£ç±»: .pdf .docx .pptx .xlsx .html .xml .epub ç­‰ â†’ markitdown è½¬æ¢
+      - å›¾ç‰‡ç±»: .png .jpg .jpeg .gif .bmp .webp â†’ markitdownï¼ˆå†…éƒ¨å¯èƒ½ä½¿ç”¨ OCRï¼‰
+      - ä»£ç ç±»: .py .js .ts .go .java ç­‰ â†’ ç›´æ¥å°è£…ä¸º Markdown ä»£ç å—
+      - Markdown: .md â†’ å§”æ‰˜ç»™ MarkdownLoader å¤„ç†
+      - éŸ³é¢‘ç±»: .mp3 .wav ç­‰ â†’ æš‚ä¸æ”¯æŒï¼ˆè®¡åˆ’ç”¨ whisper è½¬å½•ï¼‰
+      - å…œåº•: æœªçŸ¥æ ¼å¼ä¹Ÿå°è¯•ç”¨ markitdown è½¬æ¢
 
-    ÊäÈë£ºÈÎÒâÎÄ¼şÂ·¾¶
-    ´¦Àí£º
-      1. ¼ì²âÀ©Õ¹Ãû ¡ú Ñ¡Ôñ×ª»»²ßÂÔ
-      2. markitdown ×ª»» ¡ú Markdown ×Ö·û´®
-      3. °Ñ Markdown ×Ö·û´®µ±×÷"Î±ÎÄ¼ş"½»¸ø MarkdownLoader µÄÄÚÁªÂß¼­
-      4. ¸½¼ÓÔ­Ê¼¸ñÊ½ĞÅÏ¢µ½ metadata
-    Êä³ö£ºDocument
-      - text = ×ª»»ºóµÄ Markdown
-      - metadata["source_format"] = Ô­Ê¼À©Õ¹Ãû
-      - metadata["converter"] = "markitdown"
-    Ê§°Ü£º
-      - ²»Ö§³ÖµÄ¸ñÊ½ ¡ú ValueError
-      - markitdown ×ª»»Ê§°Ü ¡ú RuntimeError£¨´øÔ­Ê¼´íÎóĞÅÏ¢£©
+    ç”¨æ³•:
+        loader = MarkitdownLoader()
+        doc = loader.load("/path/to/file.pdf")
     """
 
-    # ¸ñÊ½ ¡ú ×ª»»²ßÂÔ
+    # ---- æ ¼å¼åˆ†ç±» ----
+    # markitdown å¯åŸç”Ÿè½¬æ¢çš„æ–‡æ¡£æ ¼å¼
     _MARKITDOWN_EXTENSIONS = {
         ".pdf", ".docx", ".pptx", ".xlsx",
         ".html", ".htm", ".xml", ".csv",
         ".json", ".epub",
     }
 
+    # å›¾ç‰‡æ ¼å¼ï¼ˆmarkitdown ä¼šå°è¯• OCRï¼Œå¦‚éœ€æ›´å¥½æ•ˆæœå¯æ›¿æ¢ä¸º paddleocrï¼‰
     _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
 
+    # éŸ³é¢‘æ ¼å¼ï¼ˆæš‚ä¸æ”¯æŒï¼Œé¢„ç•™ï¼‰
     _AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
 
+    # ä»£ç æ–‡ä»¶æ ¼å¼ï¼ˆæŒ‰æ‰©å±•åæ˜ å°„åˆ° Markdown ä»£ç å—çš„è¯­è¨€æ ‡è¯†ï¼‰
     _CODE_EXTENSIONS = {
         ".py", ".js", ".ts", ".jsx", ".tsx",
         ".go", ".rs", ".java", ".c", ".cpp", ".h",
@@ -46,52 +52,67 @@ class MarkitdownLoader(BaseLoader):
         ".sql", ".r", ".swift", ".kt",
     }
 
-    def load(self, path: str | Path) -> Document:
+    def load(self, path: Union[str, Path]) -> Document:
+        """
+        åŠ è½½æ–‡ä»¶ï¼Œæ ¹æ®æ‰©å±•ååˆ†æ´¾åˆ°ä¸åŒçš„å¤„ç†é€»è¾‘ï¼Œæœ€ç»ˆè¿”å› Documentã€‚
+        """
         file_path = self._resolve(path)
         suffix = file_path.suffix.lower()
 
-        # 1. ´¿ÎÄ±¾/´úÂë ¡ú Ö±½Ó¶Á£¬°ü×°³É Markdown ´úÂë¿é
+        # 1. ä»£ç æ–‡ä»¶ï¼šç›´æ¥è¯»å–åŸæ–‡å¹¶åŒ…è£…ä¸º Markdown ä»£ç å—
         if suffix in self._CODE_EXTENSIONS:
             raw = self._try_read_text(file_path)
             lang = suffix.lstrip(".")
-            text =f"```{lang}\n{raw}\n```"
+            text = f"```{lang}\n{raw}\n```"
             return self._build_document(
                 source=file_path, text=text,
                 source_format=suffix, converter="code-block",
             )
 
-        # 2. Markdown ¡ú Î¯ÍĞ¸ø MarkdownLoader
+        # 2. Markdown æ–‡ä»¶ï¼šå§”æ‰˜ç»™ä¸“é—¨çš„ MarkdownLoaderï¼ˆä¿ç•™å…¶å…ƒæ•°æ®å¤„ç†é€»è¾‘ï¼‰
         if suffix == ".md":
             from retrieval.loaders.markdown import MarkdownLoader
             doc = MarkdownLoader().load(file_path)
+            # è¡¥å……æ ¼å¼å…ƒä¿¡æ¯ï¼ˆMarkdownLoader å¯èƒ½å·²ç»å†™äº†ï¼Œè¿™é‡Œç¡®ä¿ä¸€è‡´æ€§ï¼‰
             doc.metadata["source_format"] = ".md"
             doc.metadata["converter"] = "markdown"
             return doc
 
-        # 3. Í¼Æ¬ ¡ú markitdown ÄÚÖÃ OCR£¨»òºóĞø½Ó paddleocr£©
+        # 3. å›¾ç‰‡ï¼šä½¿ç”¨ markitdownï¼ˆå†…ç½® OCR æˆ–å¤–éƒ¨åº“ï¼‰
         if suffix in self._IMAGE_EXTENSIONS:
             return self._via_markitdown(file_path, source_format=suffix)
 
-        # 4. ÎÄµµ¸ñÊ½ ¡ú markitdown
+        # 4. æ–‡æ¡£æ ¼å¼ï¼šä½¿ç”¨ markitdown è½¬æ¢
         if suffix in self._MARKITDOWN_EXTENSIONS:
             return self._via_markitdown(file_path, source_format=suffix)
 
-        # 5. ÒôÆµ ¡ú Ôİ²»Ö§³Ö£¨ĞèÒª whisper£¬²»ÊÇ markitdown µÄÖ°Ôğ£©
+        # 5. éŸ³é¢‘ï¼šæš‚ä¸æ”¯æŒï¼Œç»™å‡ºæ˜ç¡®é”™è¯¯ä¿¡æ¯å’Œæœªæ¥è®¡åˆ’
         if suffix in self._AUDIO_EXTENSIONS:
             raise ValueError(
-                f"ÒôÆµÎÄ¼şÔİ²»Ö§³Ö: {suffix}¡£"
-                f"¼Æ»®Ê¹ÓÃ whisper ÌáÈ¡×ªÂ¼ÎÄ±¾£¬ÉĞÎ´ÊµÏÖ¡£"
+                f"éŸ³é¢‘æ–‡ä»¶æš‚ä¸æ”¯æŒ: {suffix}ã€‚"
+                f"è®¡åˆ’ä½¿ç”¨ whisper è½¬å½•æ–‡æœ¬ï¼Œä½†å°šæœªå®ç°ã€‚"
             )
 
-        # 6. ¶µµ×£ºÎ´Öª¸ñÊ½Ò²ÊÔÒ»´Î markitdown
+        # 6. å…œåº•ï¼šæœªçŸ¥æ ¼å¼ä¹Ÿå°è¯•ç”¨ markitdown è½¬æ¢
         return self._via_markitdown(file_path, source_format=suffix)
 
     def _via_markitdown(self, file_path: Path, source_format: str) -> Document:
-        """Í¨¹ı markitdown ¿â×ª»»Îª Markdown£¬ÔÙ°ü×°Îª Document¡£"""
+        """
+        é€šè¿‡ markitdown åº“å°†æ–‡ä»¶è½¬æ¢ä¸º Markdownï¼Œå†åŒ…è£…ä¸º Documentã€‚
+
+        å‚æ•°:
+            file_path: æ–‡ä»¶è·¯å¾„
+            source_format: åŸå§‹æ‰©å±•åï¼ˆç”¨äºè®°å½•ï¼‰
+
+        è¿”å›:
+            Document å¯¹è±¡ï¼Œå…¶ text ä¸ºè½¬æ¢åçš„ Markdown
+        """
         try:
             from markitdown import MarkItDown
         except ImportError:
-            raise ImportError("markitdown Î´°²×°¡£pip install markitdown")
+            raise ImportError(
+                "markitdown æœªå®‰è£…ï¼Œè¯·æ‰§è¡Œ: pip install markitdown"
+            )
 
         md = MarkItDown()
         result = md.convert(str(file_path))
@@ -110,9 +131,18 @@ class MarkitdownLoader(BaseLoader):
         source_format: str,
         converter: str,
     ) -> Document:
-        """Í³Ò»µÄ Document ¹¹Ôì¡ª¡ªËùÓĞ×ª»»Â·¾¶×îÖÕ¶¼×ßÕâÀï¡£"""
+        """
+        ç»Ÿä¸€çš„ Document æ„é€ æ–¹æ³•â€”â€”æ‰€æœ‰è½¬æ¢è·¯å¾„æœ€ç»ˆéƒ½æ±‡èšäºæ­¤ã€‚
+
+        ä¿è¯ metadata å­—æ®µè§„èŒƒï¼š
+          - loader: "markitdown" ï¼ˆç”¨äº pipeline é€‰æ‹© splitterï¼‰
+          - file_name: åŸå§‹æ–‡ä»¶å
+          - file_size: æ–‡ä»¶å­—èŠ‚æ•°
+          - source_format: åŸå§‹æ‰©å±•åï¼ˆå¦‚ ".pdf"ï¼‰
+          - converter: å®é™…ä½¿ç”¨çš„è½¬æ¢å™¨åç§°
+        """
         return Document.build(
-user_id="default",
+            user_id="default",
             namespace="default",
             source=str(source),
             text=text,

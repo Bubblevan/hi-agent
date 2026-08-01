@@ -1,63 +1,65 @@
 """
 splitters/recursive.py
 
-µİ¹éÎÄ±¾ÇĞ·ÖÆ÷ ¡ª¡ª »ùÏßÊµÏÖ¡£
-ÊÊÓÃÓÚÎŞ±êÌâ½á¹¹µÄ´¿ÎÄ±¾»ò´úÂë¿é£¬°´ÓÅÏÈ¼¶Öğ²½½µ¼¶ÇĞ·Ö£¬
-ÔÙ¸ù¾İ token ÊıÁ¿ºÏ²¢¶ÎÂä²¢¼ÓÈëÖØµş¡£
+é€’å½’æ–‡æœ¬åˆ‡åˆ†å™¨ â€”â€” åŸºçº¿å®ç°ã€‚
+é€‚ç”¨äºæ— æ ‡é¢˜ç»“æ„çš„çº¯æ–‡æœ¬æˆ–ä»£ç å—ï¼ŒæŒ‰ä¼˜å…ˆçº§é€æ­¥é™çº§åˆ‡åˆ†ï¼Œ
+å†æ ¹æ® token æ•°é‡åˆå¹¶æ®µè½å¹¶åŠ å…¥é‡å ã€‚
 """
 
 from typing import List
 from models import Document, Chunk
 from splitters.base import TextSplitter, SplitterParams, _approx_token_len
 
+
 class RecursiveSplitter:
     """
-    µİ¹é×Ö·ûÇĞ·ÖÆ÷¡£
+    é€’å½’å­—ç¬¦åˆ‡åˆ†å™¨ã€‚
 
-    Ê¹ÓÃÔ¤¶¨ÒåµÄÓÅÏÈ¼¶·Ö¸ô·ûÁĞ±í£¬´Ó´ÖÁ£¶Èµ½Ï¸Á£¶ÈÖğ¼¶²ğ·ÖÎÄ±¾£¬
-    Ö±µ½Ã¿¸öÆ¬¶Î³¤¶È <= chunk_size£¨×Ö·ûÊıÏŞÖÆ£©»ò·Ö¸ô·ûºÄ¾¡¡£
-    ×îºó½«ËùÓĞÆ¬¶ÎºÏ²¢Îª chunk_size token ÊıµÄ¿é£¬²¢ÔÚ¿é¼äÉú³ÉÖØµş¡£
+    ä½¿ç”¨é¢„å®šä¹‰çš„ä¼˜å…ˆçº§åˆ†éš”ç¬¦åˆ—è¡¨ï¼Œä»ç²—ç²’åº¦åˆ°ç»†ç²’åº¦é€çº§æ‹†åˆ†æ–‡æœ¬ï¼Œ
+    ç›´åˆ°æ¯ä¸ªç‰‡æ®µé•¿åº¦ <= chunk_sizeï¼ˆå­—ç¬¦æ•°é™åˆ¶ï¼‰æˆ–åˆ†éš”ç¬¦è€—å°½ã€‚
+    æœ€åå°†æ‰€æœ‰ç‰‡æ®µåˆå¹¶ä¸º chunk_size token æ•°çš„å—ï¼Œå¹¶åœ¨å—é—´ç”Ÿæˆé‡å ã€‚
 
-    ¹¹Ôì²ÎÊı£º
-        params: SplitterParams ¶ÔÏó£¬Ò²¿ÉÓÃ¹Ø¼ü×Ö²ÎÊıÖ±½Ó´«Èë chunk_size / chunk_overlap¡£
+    æ„é€ å‚æ•°ï¼š
+        params: SplitterParams å¯¹è±¡ï¼Œä¹Ÿå¯ç”¨å…³é”®å­—å‚æ•°ç›´æ¥ä¼ å…¥ chunk_size / chunk_overlapã€‚
     """
+
     def __init__(self, params: SplitterParams | None = None, **kwargs):
         if params is None:
             params = SplitterParams(**kwargs)
-        self.chunk_size = params.chunk_size          # Ä¿±ê chunk token Êı
-        self.chunk_overlap = params.chunk_overlap    # ÏàÁÚ chunk ÖØµş token Êı
+        self.chunk_size = params.chunk_size          # ç›®æ ‡ chunk token æ•°
+        self.chunk_overlap = params.chunk_overlap    # ç›¸é‚» chunk é‡å  token æ•°
 
     def split(self, document: Document) -> List[Chunk]:
-        """Ö÷Èë¿Ú£º½«ÎÄµµÇĞ³É Chunk ÁĞ±í"""
-        # µÚÒ»²½£ºµİ¹éÇĞ·ÖÎªÔ­Ê¼Æ¬¶Î£¨Ã¿¸öÆ¬¶ÎÎÄ±¾³¤¶È <= chunk_size ×Ö·û£©
+        """ä¸»å…¥å£ï¼šå°†æ–‡æ¡£åˆ‡æˆ Chunk åˆ—è¡¨"""
+        # ç¬¬ä¸€æ­¥ï¼šé€’å½’åˆ‡åˆ†ä¸ºåŸå§‹ç‰‡æ®µï¼ˆæ¯ä¸ªç‰‡æ®µæ–‡æœ¬é•¿åº¦ <= chunk_size å­—ç¬¦ï¼‰
         splits = self._split_text(document.text, self._get_separators())
-        # µÚ¶ş²½£º»ùÓÚ token ÊıºÏ²¢Æ¬¶Î£¬Éú³É Chunk ¶ÔÏó
+        # ç¬¬äºŒæ­¥ï¼šåŸºäº token æ•°åˆå¹¶ç‰‡æ®µï¼Œç”Ÿæˆ Chunk å¯¹è±¡
         chunks = self._merge_splits(splits, document)
         return chunks
 
     def _get_separators(self) -> List[str]:
         """
-        ·µ»ØÇĞ·ÖÓÅÏÈ¼¶ÁĞ±í¡£
-        Ë³Ğò£ºÏÈ°´Ë«»»ĞĞ£¨¶ÎÂä£©£¬ÔÙ°´µ¥»»ĞĞ£¨ĞĞ£©£¬ÔÙ°´ÖĞÎÄ¾äºÅ¡¢Ó¢ÎÄ¾äºÅ£¬
-        ×îºó°´¿Õ¸ñÓ²ÇĞ¡£
+        è¿”å›åˆ‡åˆ†ä¼˜å…ˆçº§åˆ—è¡¨ã€‚
+        é¡ºåºï¼šå…ˆæŒ‰åŒæ¢è¡Œï¼ˆæ®µè½ï¼‰ï¼Œå†æŒ‰å•æ¢è¡Œï¼ˆè¡Œï¼‰ï¼Œå†æŒ‰ä¸­æ–‡å¥å·ã€è‹±æ–‡å¥å·ï¼Œ
+        æœ€åæŒ‰ç©ºæ ¼ç¡¬åˆ‡ã€‚
         """
-        return ["\n\n", "\n", "¡£", ".", " "]
-    
+        return ["\n\n", "\n", "ã€‚", ".", " "]
+
     def _split_text(self, text: str, separators: List[str]) -> List[str]:
         """
-        µİ¹é²ğ·ÖÎÄ±¾¡£
+        é€’å½’æ‹†åˆ†æ–‡æœ¬ã€‚
 
-        ²ßÂÔ£º
-        1. ´Ó separators ÖĞÕÒµ½µÚÒ»¸öÊµ¼Ê³öÏÖÔÚ text ÖĞµÄ·Ö¸ô·û¡£
-        2. ÈôÕÒ²»µ½£¬»ò·Ö¸ô·ûÁĞ±íÒÑ¿Õ£¬ÍË»¯Îª°´×Ö·ûÓ²ÇĞ¡£
-        3. °´¸Ã·Ö¸ô·ûÇĞ·Ö£¬¶ÔÃ¿¸öÆ¬¶Î¼ì²é³¤¶È£º
-           - ÈôÆ¬¶Î³¤¶È <= chunk_size£¨×Ö·ûÊı£©£¬Ö±½Ó±£Áô£»
-           - ·ñÔò£¬ÓÃÊ£ÓàµÄ¸üÏ¸Á£¶ÈµÄ·Ö¸ô·ûÁĞ±íµİ¹éÇĞ·Ö¸ÃÆ¬¶Î£»
-           - ÈôÃ»ÓĞ¸üÏ¸Á£¶ÈµÄ·Ö¸ô·û£¬Ö±½Ó°´×Ö·ûÓ²ÇĞ¡£
+        ç­–ç•¥ï¼š
+        1. ä» separators ä¸­æ‰¾åˆ°ç¬¬ä¸€ä¸ªå®é™…å‡ºç°åœ¨ text ä¸­çš„åˆ†éš”ç¬¦ã€‚
+        2. è‹¥æ‰¾ä¸åˆ°ï¼Œæˆ–åˆ†éš”ç¬¦åˆ—è¡¨å·²ç©ºï¼Œé€€åŒ–ä¸ºæŒ‰å­—ç¬¦ç¡¬åˆ‡ã€‚
+        3. æŒ‰è¯¥åˆ†éš”ç¬¦åˆ‡åˆ†ï¼Œå¯¹æ¯ä¸ªç‰‡æ®µæ£€æŸ¥é•¿åº¦ï¼š
+           - è‹¥ç‰‡æ®µé•¿åº¦ <= chunk_sizeï¼ˆå­—ç¬¦æ•°ï¼‰ï¼Œç›´æ¥ä¿ç•™ï¼›
+           - å¦åˆ™ï¼Œç”¨å‰©ä½™çš„æ›´ç»†ç²’åº¦çš„åˆ†éš”ç¬¦åˆ—è¡¨é€’å½’åˆ‡åˆ†è¯¥ç‰‡æ®µï¼›
+           - è‹¥æ²¡æœ‰æ›´ç»†ç²’åº¦çš„åˆ†éš”ç¬¦ï¼Œç›´æ¥æŒ‰å­—ç¬¦ç¡¬åˆ‡ã€‚
         """
         final_splits = []
-        # Ñ¡ÔñÊµ¼Ê¿ÉÓÃµÄ×î´ÖÁ£¶È·Ö¸ô·û
-        separator = separators[-1]  # Ä¬ÈÏÊ¹ÓÃ×îÏ¸Á£¶È
+        # é€‰æ‹©å®é™…å¯ç”¨çš„æœ€ç²—ç²’åº¦åˆ†éš”ç¬¦
+        separator = separators[-1]  # é»˜è®¤ä½¿ç”¨æœ€ç»†ç²’åº¦
         for sep in separators:
             if sep == "":
                 separator = ""
@@ -66,35 +68,125 @@ class RecursiveSplitter:
                 separator = sep
                 break
 
-        # °´Ñ¡¶¨·Ö¸ô·ûÇĞ·Ö
+        # æŒ‰é€‰å®šåˆ†éš”ç¬¦åˆ‡åˆ†
         if separator:
-            # ±£Áô·Ö¸ô·û±¾Éí£ºÊ¹ÓÃ split(sep) »á¶ªÊ§·Ö¸ô·û£¬ÕâÀïÖ±½Ó split ²»±£Áô£¬
-            # µ«ÎªÁËÖ®ºó»¹Ô­Î»ÖÃ£¬ÎÒÃÇ¼ÇÂ¼ split ½á¹û£¬²¢ÔÚºÏ²¢Ê±´¦Àí×Ö·ûÎ»ÖÃ¡£
-            # ¶ÔÓÚµİ¹é splitter£¬¼òµ¥²ÉÓÃ split ¼´¿É¡£
+            # ä¿ç•™åˆ†éš”ç¬¦æœ¬èº«ï¼šä½¿ç”¨ split(sep) ä¼šä¸¢å¤±åˆ†éš”ç¬¦ï¼Œè¿™é‡Œç›´æ¥ split ä¸ä¿ç•™ï¼Œ
+            # ä½†ä¸ºäº†ä¹‹åè¿˜åŸä½ç½®ï¼Œæˆ‘ä»¬è®°å½• split ç»“æœï¼Œå¹¶åœ¨åˆå¹¶æ—¶å¤„ç†å­—ç¬¦ä½ç½®ã€‚
+            # å¯¹äºé€’å½’ splitterï¼Œç®€å•é‡‡ç”¨ split å³å¯ã€‚
             splits = text.split(separator)
         else:
-            # ÎŞ¿ÉÓÃ·Ö¸ô·û£¬°´×Ö·ûÓ²ÇĞ
+            # æ— å¯ç”¨åˆ†éš”ç¬¦ï¼ŒæŒ‰å­—ç¬¦ç¡¬åˆ‡
             splits = list(text)
 
-        # ¹¹½¨Ê£ÓàµÄ·Ö¸ô·ûÁĞ±í£¨È¥³ıµ±Ç°Ñ¡ÓÃµÄÄÇ¸ö£©
+        # æ„å»ºå‰©ä½™çš„åˆ†éš”ç¬¦åˆ—è¡¨ï¼ˆå»é™¤å½“å‰é€‰ç”¨çš„é‚£ä¸ªï¼‰
         new_separators = []
         for s in separators:
             if s == separator:
                 break
             new_separators.append(s)
-        # ÒÆ³ıµÚÒ»¸öÔªËØ£¨¼´µ±Ç°·Ö¸ô·û£©
+        # ç§»é™¤ç¬¬ä¸€ä¸ªå…ƒç´ ï¼ˆå³å½“å‰åˆ†éš”ç¬¦ï¼‰
         new_separators = new_separators[1:] if new_separators else []
 
         for split in splits:
             if len(split) <= self.chunk_size:
                 final_splits.append(split)
             elif new_separators:
-                # »¹ÓĞ¸üÏ¸Á£¶ÈµÄ·Ö¸ô·û£¬µİ¹éÇĞ·Ö
+                # è¿˜æœ‰æ›´ç»†ç²’åº¦çš„åˆ†éš”ç¬¦ï¼Œé€’å½’åˆ‡åˆ†
                 final_splits.extend(self._split_text(split, new_separators))
             else:
-                # ×îºóÊÖ¶Î£ºÖ±½Ó°´×Ö·ûÓ²ÇĞ£¨Ã¿ chunk_size ×Ö·ûÒ»¶Î£©
+                # æœ€åæ‰‹æ®µï¼šç›´æ¥æŒ‰å­—ç¬¦ç¡¬åˆ‡ï¼ˆæ¯ chunk_size å­—ç¬¦ä¸€æ®µï¼‰
                 for i in range(0, len(split), self.chunk_size):
                     final_splits.append(split[i:i + self.chunk_size])
         return final_splits
-    
-    
+
+    def _merge_splits(self, splits: List[str], document: Document) -> List[Chunk]:
+        """
+        å°†åŸå§‹ç‰‡æ®µåˆå¹¶ä¸ºæœ€ç»ˆ chunkï¼Œæ§åˆ¶ token æ•°å¹¶åŠ å…¥é‡å ã€‚
+
+        æµç¨‹ï¼š
+        1. éå†æ‰€æœ‰ç‰‡æ®µï¼Œç´¯è®¡å½“å‰ chunk çš„ token æ•°ã€‚
+        2. å¦‚æœå½“å‰ chunk åŠ å…¥æ–°ç‰‡æ®µå token æ•° <= chunk_sizeï¼Œåˆ™åŠ å…¥ã€‚
+        3. å¦åˆ™ï¼Œäº§å‡ºå½“å‰ chunkï¼ˆè°ƒç”¨ Chunk.buildï¼‰ï¼Œç„¶åå¤„ç†é‡å ï¼š
+           - ä»å½“å‰ chunk çš„æœ«å°¾å‘å‰é€‰å–ç‰‡æ®µï¼Œä½¿å¾—é€‰å–ç‰‡æ®µçš„ token æ€»æ•° <= chunk_overlapï¼Œ
+             è¿™äº›ç‰‡æ®µä½œä¸ºä¸‹ä¸€ä¸ª chunk çš„å‰ç¼€ã€‚
+        4. å°†å½“å‰ç‰‡æ®µï¼ˆè§¦å‘æº¢å‡ºçš„é‚£ä¸ªï¼‰åŠ å…¥æ–° chunkã€‚
+        5. å¾ªç¯ç»“æŸåäº§å‡ºæœ€åä¸€ä¸ª chunkã€‚
+
+        å‚æ•°:
+            splits: åŸå§‹æ–‡æœ¬ç‰‡æ®µåˆ—è¡¨
+            document: åŸå§‹æ–‡æ¡£å¯¹è±¡
+
+        è¿”å›:
+            List[Chunk] å¯¹è±¡
+        """
+        chunks: List[Chunk] = []
+        current_chunk_splits: List[str] = []   # å½“å‰ chunk ä¸­çš„ç‰‡æ®µ
+        current_tokens = 0                     # å½“å‰ chunk çš„ token æ•°
+        position = 0                           # chunk åºå·
+        char_cursor = 0                        # å½“å‰å¤„ç†åˆ°çš„å­—ç¬¦ä½ç½®ï¼ˆä»æ–‡æ¡£å¼€å¤´ç´¯è®¡ï¼‰
+
+        for split in splits:
+            split_tokens = _approx_token_len(split) or 1
+
+            # å¦‚æœå½“å‰ chunk ä¸ºç©ºï¼Œæˆ–åŠ å…¥åä»ä¸è¶…é™ï¼Œåˆ™ç›´æ¥åŠ å…¥
+            if current_tokens + split_tokens <= self.chunk_size or not current_chunk_splits:
+                current_chunk_splits.append(split)
+                current_tokens += split_tokens
+            else:
+                # å½“å‰ chunk å·²æ»¡ï¼Œéœ€è¦äº§å‡º
+                # è®¡ç®— chunk æ–‡æœ¬å†…å®¹ï¼ˆç‰‡æ®µç›´æ¥æ‹¼æ¥ï¼Œå› ä¸ºé€’å½’åˆ‡åˆ†æ—¶å·²ä¸¢å¤±åˆ†éš”ç¬¦ï¼Œ
+                # è¿™é‡Œç›´æ¥è¿æ¥ï¼Œå®é™…é¡¹ç›®ä¸­å¯èƒ½éœ€è¦æ›´ç²¾ç¡®çš„è¿˜åŸï¼Œä½†å¯¹ token ä¼°ç®—å½±å“ä¸å¤§ï¼‰
+                content = "".join(current_chunk_splits)
+                start = char_cursor
+                end = start + len(content)
+                chunks.append(
+                    Chunk.build(
+                        document=document,
+                        content=content,
+                        position=position,
+                        start_char=start,
+                        end_char=end,
+                    )
+                )
+                position += 1
+
+                # ---- é‡å å¤„ç† ----
+                if self.chunk_overlap > 0 and current_chunk_splits:
+                    kept: List[str] = []
+                    kept_tokens = 0
+                    # ä»å½“å‰ chunk çš„æœ«å°¾å‘å‰é€‰å–ç‰‡æ®µï¼Œç›´åˆ°è¾¾åˆ° overlap token æ•°
+                    for s in reversed(current_chunk_splits):
+                        t = _approx_token_len(s) or 1
+                        if kept_tokens + t > self.chunk_overlap:
+                            break
+                        kept.append(s)
+                        kept_tokens += t
+                    current_chunk_splits = list(reversed(kept))
+                    current_tokens = kept_tokens
+                else:
+                    current_chunk_splits = []
+                    current_tokens = 0
+
+                # å°†å½“å‰æº¢å‡ºçš„ split åŠ å…¥æ–° chunk
+                current_chunk_splits.append(split)
+                current_tokens += split_tokens
+
+            # æ›´æ–°å­—ç¬¦æ¸¸æ ‡ï¼šå³ä½¿åˆ‡åˆ†ä¸¢å¤±äº†åˆ†éš”ç¬¦ï¼Œæˆ‘ä»¬ä¹Ÿå‡å®šç‰‡æ®µè¿ç»­ï¼ˆå®é™…ä½ç½®å¯èƒ½æœ‰åå·®ï¼‰
+            char_cursor += len(split)
+
+        # å¤„ç†æœ€åä¸€ä¸ª chunk
+        if current_chunk_splits:
+            content = "".join(current_chunk_splits)
+            start = char_cursor
+            end = start + len(content)
+            chunks.append(
+                Chunk.build(
+                    document=document,
+                    content=content,
+                    position=position,
+                    start_char=start,
+                    end_char=end,
+                )
+            )
+
+        return chunks
