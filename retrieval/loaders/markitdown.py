@@ -27,7 +27,9 @@ class MarkitdownLoader(BaseLoader):
 
     用法:
         loader = MarkitdownLoader()
-        doc = loader.load("/path/to/file.pdf")
+        doc = loader.load(
+            "/path/to/file.pdf", user_id="alice", namespace="papers"
+        )
     """
 
     # ---- 格式分类 ----
@@ -52,7 +54,13 @@ class MarkitdownLoader(BaseLoader):
         ".sql", ".r", ".swift", ".kt",
     }
 
-    def load(self, path: Union[str, Path]) -> Document:
+    def load(
+        self,
+        path: Union[str, Path],
+        *,
+        user_id: str,
+        namespace: str,
+    ) -> Document:
         """
         加载文件，根据扩展名分派到不同的处理逻辑，最终返回 Document。
         """
@@ -67,24 +75,23 @@ class MarkitdownLoader(BaseLoader):
             return self._build_document(
                 source=file_path, text=text,
                 source_format=suffix, converter="code-block",
+                user_id=user_id, namespace=namespace,
             )
 
         # 2. Markdown 文件：委托给专门的 MarkdownLoader（保留其元数据处理逻辑）
         if suffix == ".md":
             from retrieval.loaders.markdown import MarkdownLoader
-            doc = MarkdownLoader().load(file_path)
-            # 补充格式元信息（MarkdownLoader 可能已经写了，这里确保一致性）
-            doc.metadata["source_format"] = ".md"
-            doc.metadata["converter"] = "markdown"
-            return doc
+            return MarkdownLoader().load(
+                file_path, user_id=user_id, namespace=namespace
+            )
 
         # 3. 图片：使用 markitdown（内置 OCR 或外部库）
         if suffix in self._IMAGE_EXTENSIONS:
-            return self._via_markitdown(file_path, source_format=suffix)
+            return self._via_markitdown(file_path, suffix, user_id, namespace)
 
         # 4. 文档格式：使用 markitdown 转换
         if suffix in self._MARKITDOWN_EXTENSIONS:
-            return self._via_markitdown(file_path, source_format=suffix)
+            return self._via_markitdown(file_path, suffix, user_id, namespace)
 
         # 5. 音频：暂不支持，给出明确错误信息和未来计划
         if suffix in self._AUDIO_EXTENSIONS:
@@ -94,9 +101,11 @@ class MarkitdownLoader(BaseLoader):
             )
 
         # 6. 兜底：未知格式也尝试用 markitdown 转换
-        return self._via_markitdown(file_path, source_format=suffix)
+        return self._via_markitdown(file_path, suffix, user_id, namespace)
 
-    def _via_markitdown(self, file_path: Path, source_format: str) -> Document:
+    def _via_markitdown(
+        self, file_path: Path, source_format: str, user_id: str, namespace: str
+    ) -> Document:
         """
         通过 markitdown 库将文件转换为 Markdown，再包装为 Document。
 
@@ -121,6 +130,8 @@ class MarkitdownLoader(BaseLoader):
             text=result.text_content,
             source_format=source_format,
             converter="markitdown",
+            user_id=user_id,
+            namespace=namespace,
         )
 
     def _build_document(
@@ -130,6 +141,8 @@ class MarkitdownLoader(BaseLoader):
         text: str,
         source_format: str,
         converter: str,
+        user_id: str,
+        namespace: str,
     ) -> Document:
         """
         统一的 Document 构造方法——所有转换路径最终都汇聚于此。
@@ -142,8 +155,8 @@ class MarkitdownLoader(BaseLoader):
           - converter: 实际使用的转换器名称
         """
         return Document.build(
-            user_id="default",
-            namespace="default",
+            user_id=user_id,
+            namespace=namespace,
             source=str(source),
             text=text,
             metadata={

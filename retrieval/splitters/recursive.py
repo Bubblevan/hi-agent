@@ -6,9 +6,16 @@ splitters/recursive.py
 再根据 token 数量合并段落并加入重叠。
 """
 
-from typing import List
-from models import Document, Chunk
-from splitters.base import TextSplitter, SplitterParams, _approx_token_len
+from dataclasses import dataclass
+
+from retrieval.models import Chunk, Document
+from retrieval.splitters.base import SplitterParams
+
+
+@dataclass(frozen=True)
+class _Span:
+    start: int
+    end: int
 
 
 class RecursiveSplitter:
@@ -16,7 +23,7 @@ class RecursiveSplitter:
     递归字符切分器。
 
     使用预定义的优先级分隔符列表，从粗粒度到细粒度逐级拆分文本，
-    直到每个片段长度 <= chunk_size（字符数限制）或分隔符耗尽。
+    直到每个片段的估算 token 数 <= chunk_size 或分隔符耗尽。
     最后将所有片段合并为 chunk_size token 数的块，并在块间生成重叠。
 
     构造参数：
@@ -28,24 +35,25 @@ class RecursiveSplitter:
             params = SplitterParams(**kwargs)
         self.chunk_size = params.chunk_size          # 目标 chunk token 数
         self.chunk_overlap = params.chunk_overlap    # 相邻 chunk 重叠 token 数
+        self.token_counter = params.token_counter
 
-    def split(self, document: Document) -> List[Chunk]:
+    def split(self, document: Document) -> list[Chunk]:
         """主入口：将文档切成 Chunk 列表"""
-        # 第一步：递归切分为原始片段（每个片段文本长度 <= chunk_size 字符）
-        splits = self._split_text(document.text, self._get_separators())
+        # 第一步：递归切分为不超过 token 预算的原始片段
+        splits = self._split_text(document.text, 0, self._get_separators())
         # 第二步：基于 token 数合并片段，生成 Chunk 对象
         chunks = self._merge_splits(splits, document)
         return chunks
 
-    def _get_separators(self) -> List[str]:
+    def _get_separators(self) -> list[str]:
         """
         返回切分优先级列表。
         顺序：先按双换行（段落），再按单换行（行），再按中文句号、英文句号，
         最后按空格硬切。
         """
-        return ["\n\n", "\n", "。", ".", " "]
+        return ["\n\n", "\n", "。", "！", "？", ".", "!", "?", " "]
 
-    def _split_text(self, text: str, separators: List[str]) -> List[str]:
+    def _split_text(self, text: str, offset: int, separators: list[str]) -> list[_Span]:
         """
         递归拆分文本。
 
@@ -53,53 +61,46 @@ class RecursiveSplitter:
         1. 从 separators 中找到第一个实际出现在 text 中的分隔符。
         2. 若找不到，或分隔符列表已空，退化为按字符硬切。
         3. 按该分隔符切分，对每个片段检查长度：
-           - 若片段长度 <= chunk_size（字符数），直接保留；
+           - 若片段 token 数 <= chunk_size，直接保留；
            - 否则，用剩余的更细粒度的分隔符列表递归切分该片段；
-           - 若没有更细粒度的分隔符，直接按字符硬切。
+           - 若没有更细粒度的分隔符，按字符边界寻找满足 token 预算的切点。
         """
-        final_splits = []
-        # 选择实际可用的最粗粒度分隔符
-        separator = separators[-1]  # 默认使用最细粒度
-        for sep in separators:
-            if sep == "":
-                separator = ""
-                break
-            if sep in text:
-                separator = sep
-                break
+        if not text:
+            return []
+        if self.token_counter.count(text) <= self.chunk_size:
+            return [_Span(offset, offset + len(text))]
 
-        # 按选定分隔符切分
-        if separator:
-            # 保留分隔符本身：使用 split(sep) 会丢失分隔符，这里直接 split 不保留，
-            # 但为了之后还原位置，我们记录 split 结果，并在合并时处理字符位置。
-            # 对于递归 splitter，简单采用 split 即可。
-            splits = text.split(separator)
-        else:
-            # 无可用分隔符，按字符硬切
-            splits = list(text)
+        for index, separator in enumerate(separators):
+            if separator not in text:
+                continue
+            spans: list[_Span] = []
+            cursor = 0
+            while cursor < len(text):
+                found = text.find(separator, cursor)
+                end = len(text) if found < 0 else found + len(separator)
+                if end > cursor:
+                    part = text[cursor:end]
+                    spans.extend(self._split_text(part, offset + cursor, separators[index + 1 :]))
+                cursor = end
+            if len(spans) > 1:
+                return spans
 
-        # 构建剩余的分隔符列表（去除当前选用的那个）
-        new_separators = []
-        for s in separators:
-            if s == separator:
-                break
-            new_separators.append(s)
-        # 移除第一个元素（即当前分隔符）
-        new_separators = new_separators[1:] if new_separators else []
+        return self._hard_split(text, offset)
 
-        for split in splits:
-            if len(split) <= self.chunk_size:
-                final_splits.append(split)
-            elif new_separators:
-                # 还有更细粒度的分隔符，递归切分
-                final_splits.extend(self._split_text(split, new_separators))
-            else:
-                # 最后手段：直接按字符硬切（每 chunk_size 字符一段）
-                for i in range(0, len(split), self.chunk_size):
-                    final_splits.append(split[i:i + self.chunk_size])
-        return final_splits
+    def _hard_split(self, text: str, offset: int) -> list[_Span]:
+        """Split at character boundaries while enforcing the configured unit."""
+        spans: list[_Span] = []
+        start = 0
+        while start < len(text):
+            end = start + 1
+            while end <= len(text) and self.token_counter.count(text[start:end]) <= self.chunk_size:
+                end += 1
+            end = max(start + 1, end - 1)
+            spans.append(_Span(offset + start, offset + end))
+            start = end
+        return spans
 
-    def _merge_splits(self, splits: List[str], document: Document) -> List[Chunk]:
+    def _merge_splits(self, splits: list[_Span], document: Document) -> list[Chunk]:
         """
         将原始片段合并为最终 chunk，控制 token 数并加入重叠。
 
@@ -119,14 +120,13 @@ class RecursiveSplitter:
         返回:
             List[Chunk] 对象
         """
-        chunks: List[Chunk] = []
-        current_chunk_splits: List[str] = []   # 当前 chunk 中的片段
+        chunks: list[Chunk] = []
+        current_chunk_splits: list[_Span] = []
         current_tokens = 0                     # 当前 chunk 的 token 数
         position = 0                           # chunk 序号
-        char_cursor = 0                        # 当前处理到的字符位置（从文档开头累计）
 
         for split in splits:
-            split_tokens = _approx_token_len(split) or 1
+            split_tokens = self.token_counter.count(document.text[split.start:split.end]) or 1
 
             # 如果当前 chunk 为空，或加入后仍不超限，则直接加入
             if current_tokens + split_tokens <= self.chunk_size or not current_chunk_splits:
@@ -134,11 +134,10 @@ class RecursiveSplitter:
                 current_tokens += split_tokens
             else:
                 # 当前 chunk 已满，需要产出
-                # 计算 chunk 文本内容（片段直接拼接，因为递归切分时已丢失分隔符，
-                # 这里直接连接，实际项目中可能需要更精确的还原，但对 token 估算影响不大）
-                content = "".join(current_chunk_splits)
-                start = char_cursor
-                end = start + len(content)
+                # Span 保留原始分隔符和偏移，直接从原文截取即可。
+                start = current_chunk_splits[0].start
+                end = current_chunk_splits[-1].end
+                content = document.text[start:end]
                 chunks.append(
                     Chunk.build(
                         document=document,
@@ -152,17 +151,28 @@ class RecursiveSplitter:
 
                 # ---- 重叠处理 ----
                 if self.chunk_overlap > 0 and current_chunk_splits:
-                    kept: List[str] = []
+                    kept: list[_Span] = []
                     kept_tokens = 0
                     # 从当前 chunk 的末尾向前选取片段，直到达到 overlap token 数
                     for s in reversed(current_chunk_splits):
-                        t = _approx_token_len(s) or 1
+                        t = self.token_counter.count(document.text[s.start:s.end]) or 1
                         if kept_tokens + t > self.chunk_overlap:
                             break
                         kept.append(s)
                         kept_tokens += t
                     current_chunk_splits = list(reversed(kept))
                     current_tokens = kept_tokens
+                    while (
+                        current_chunk_splits
+                        and current_tokens + split_tokens > self.chunk_size
+                    ):
+                        removed = current_chunk_splits.pop(0)
+                        current_tokens -= (
+                            self.token_counter.count(
+                                document.text[removed.start:removed.end]
+                            )
+                            or 1
+                        )
                 else:
                     current_chunk_splits = []
                     current_tokens = 0
@@ -171,14 +181,11 @@ class RecursiveSplitter:
                 current_chunk_splits.append(split)
                 current_tokens += split_tokens
 
-            # 更新字符游标：即使切分丢失了分隔符，我们也假定片段连续（实际位置可能有偏差）
-            char_cursor += len(split)
-
         # 处理最后一个 chunk
         if current_chunk_splits:
-            content = "".join(current_chunk_splits)
-            start = char_cursor
-            end = start + len(content)
+            start = current_chunk_splits[0].start
+            end = current_chunk_splits[-1].end
+            content = document.text[start:end]
             chunks.append(
                 Chunk.build(
                     document=document,

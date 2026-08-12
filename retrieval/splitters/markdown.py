@@ -6,9 +6,15 @@ Markdown 标题感知分块器。
 保证 chunk 的 heading_path 信息完整，并在切分时保持代码块、列表等结构的完整。
 """
 
-from typing import List, Dict, Optional
-from models import Document, Chunk
-from splitters.base import TextSplitter, SplitterParams, _approx_token_len
+import re
+from typing import Any
+
+from retrieval.models import Chunk, Document
+from retrieval.splitters.base import SplitterParams
+
+
+_ATX_HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
+_FENCE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 
 
 class MarkdownSplitter:
@@ -28,8 +34,9 @@ class MarkdownSplitter:
             params = SplitterParams(**kwargs)
         self.chunk_size = params.chunk_size
         self.chunk_overlap = params.chunk_overlap
+        self.token_counter = params.token_counter
 
-    def split(self, document: Document) -> List[Chunk]:
+    def split(self, document: Document) -> list[Chunk]:
         """
         主入口：将 Markdown 文档切割为 Chunk 列表。
         """
@@ -50,7 +57,7 @@ class MarkdownSplitter:
             for i, rc in enumerate(raw_chunks)
         ]
 
-    def _split_paragraphs_with_headings(self, text: str) -> List[Dict]:
+    def _split_paragraphs_with_headings(self, text: str) -> list[dict[str, Any]]:
         """
         按标题和空行将文本分解为段落。
 
@@ -70,51 +77,60 @@ class MarkdownSplitter:
             "start": 段落起始字符位置（相对于原文）
             "end": 段落结束字符位置
         """
-        lines = text.splitlines()
-        heading_stack: List[str] = []   # 当前标题栈，如 ["# 系统设计", "## 内存系统"]
-        paragraphs: List[Dict] = []
-        buf: List[str] = []             # 当前段落行缓冲区
+        lines = text.splitlines(keepends=True)
+        heading_stack: list[str] = []
+        paragraphs: list[dict[str, Any]] = []
+        buf: list[str] = []
+        buf_start = 0
         char_pos = 0                    # 当前已扫描的字符位置（包含换行符）
+        fence: tuple[str, int] | None = None
 
         def flush_buf(end_pos: int):
             """将缓冲区中的行合并为一个段落并添加到 paragraphs，然后清空缓冲区"""
-            nonlocal buf
+            nonlocal buf, buf_start
             if not buf:
                 return
-            content = "\n".join(buf).strip()
-            if content:  # 忽略纯空白段落
+            raw_content = "".join(buf)
+            leading = len(raw_content) - len(raw_content.lstrip())
+            content = raw_content.strip()
+            if content:
+                start = buf_start + leading
                 paragraphs.append({
                     "content": content,
                     "heading_path": " > ".join(heading_stack) if heading_stack else None,
-                    "start": max(0, end_pos - len(content)),
-                    "end": end_pos,
+                    "start": start,
+                    "end": start + len(content),
                 })
             buf = []
 
         for ln in lines:
-            raw = ln
-            # 标题行处理
-            if raw.strip().startswith("#"):
+            raw = ln.rstrip("\r\n")
+            fence_match = _FENCE_RE.match(raw)
+            if fence_match:
+                marker = fence_match.group(1)
+                if fence is None:
+                    fence = (marker[0], len(marker))
+                elif marker[0] == fence[0] and len(marker) >= fence[1]:
+                    fence = None
+
+            heading_match = None if fence is not None or fence_match else _ATX_HEADING_RE.match(raw)
+            if heading_match:
                 flush_buf(char_pos)
-                # 计算标题级别（# 的数量）
-                level = len(raw) - len(raw.lstrip('#'))
-                title = raw.lstrip('#').strip()
-                if level <= 0:
-                    level = 1
-                # 维护标题栈：移除所有层级 >= 当前层级的标题（因为同级或上级标题会终结当前路径）
-                while heading_stack and len(heading_stack) >= level:
-                    heading_stack.pop()
+                level = len(heading_match.group(1))
+                title = heading_match.group(2).strip()
+                heading_stack[level - 1 :] = []
                 heading_stack.append(title)
-                char_pos += len(raw) + 1  # +1 for newline
+                char_pos += len(ln)
                 continue
 
-            # 空行：分段
-            if raw.strip() == "":
+            if not buf:
+                buf_start = char_pos
+            if raw.strip() == "" and fence is None:
                 flush_buf(char_pos)
             else:
-                buf.append(raw)
+                buf.append(ln)
 
-            char_pos += len(raw) + 1
+            char_pos += len(ln)
 
         # 处理文件末尾的内容
         flush_buf(char_pos)
@@ -129,7 +145,7 @@ class MarkdownSplitter:
             }]
         return paragraphs
 
-    def _chunk_paragraphs(self, paragraphs: List[Dict]) -> List[Dict]:
+    def _chunk_paragraphs(self, paragraphs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         基于 token 数合并段落为 chunk，并加入重叠。
 
@@ -151,14 +167,19 @@ class MarkdownSplitter:
             "end": 结束字符位置
             "heading_path": 标题路径（可能为 None）
         """
-        chunks: List[Dict] = []
-        cur: List[Dict] = []          # 当前正在累积的段落列表
+        paragraphs = [
+            piece
+            for paragraph in paragraphs
+            for piece in self._fit_paragraph(paragraph)
+        ]
+        chunks: list[dict[str, Any]] = []
+        cur: list[dict[str, Any]] = []
         cur_tokens = 0                # 当前累积段落的 token 总数
         i = 0
 
         while i < len(paragraphs):
             p = paragraphs[i]
-            p_tokens = _approx_token_len(p["content"]) or 1
+            p_tokens = self.token_counter.count(p["content"]) or 1
 
             # 如果可以加入当前 chunk
             if cur_tokens + p_tokens <= self.chunk_size or not cur:
@@ -184,17 +205,20 @@ class MarkdownSplitter:
 
                 # ---- 重叠处理 ----
                 if self.chunk_overlap > 0 and cur:
-                    kept: List[Dict] = []
+                    kept: list[dict[str, Any]] = []
                     kept_tokens = 0
                     # 从后往前选取段落，累计 token 数不超过 overlap
                     for x in reversed(cur):
-                        t = _approx_token_len(x["content"]) or 1
+                        t = self.token_counter.count(x["content"]) or 1
                         if kept_tokens + t > self.chunk_overlap:
                             break
                         kept.append(x)
                         kept_tokens += t
                     cur = list(reversed(kept))
                     cur_tokens = kept_tokens
+                    while cur and cur_tokens + p_tokens > self.chunk_size:
+                        removed = cur.pop(0)
+                        cur_tokens -= self.token_counter.count(removed["content"]) or 1
                 else:
                     cur = []
                     cur_tokens = 0
@@ -216,3 +240,28 @@ class MarkdownSplitter:
             })
 
         return chunks
+
+    def _fit_paragraph(self, paragraph: dict[str, Any]) -> list[dict[str, Any]]:
+        """Hard-split an oversized paragraph while retaining source offsets."""
+        content = paragraph["content"]
+        if self.token_counter.count(content) <= self.chunk_size:
+            return [paragraph]
+
+        pieces: list[dict[str, Any]] = []
+        start = 0
+        while start < len(content):
+            end = start + 1
+            while (
+                end <= len(content)
+                and self.token_counter.count(content[start:end]) <= self.chunk_size
+            ):
+                end += 1
+            end = max(start + 1, end - 1)
+            pieces.append({
+                **paragraph,
+                "content": content[start:end],
+                "start": paragraph["start"] + start,
+                "end": paragraph["start"] + end,
+            })
+            start = end
+        return pieces

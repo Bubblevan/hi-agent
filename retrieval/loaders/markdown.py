@@ -20,29 +20,35 @@ class MarkdownLoader(BaseLoader):
     失败：同 BaseLoader._resolve
     """
 
-    def load(self, path: str | Path) -> Document:
+    def load(
+        self, path: str | Path, *, user_id: str, namespace: str
+    ) -> Document:
         file_path = self._resolve(path)
-        raw = file_path.read_text(encoding="utf-8")
+        raw, encoding = self._try_read_text_with_encoding(file_path)
 
         frontmatter: dict[str, Any] = {}
         body = raw
 
-        if raw.startswith("---"):
+        if raw.startswith("---\n") or raw.startswith("---\r\n"):
             parts = raw.split("---", 2)
             if len(parts) >= 3:
                 try:
-                    frontmatter = yaml.safe_load(parts[1]) or {}
-                except yaml.YAMLError:
+                    parsed = yaml.safe_load(parts[1]) or {}
+                    if not isinstance(parsed, dict):
+                        raise ValueError("frontmatter 顶层必须是 mapping")
+                    frontmatter = parsed
+                    body = parts[2].lstrip("\r\n")
+                except (yaml.YAMLError, ValueError):
                     pass  # frontmatter 解析失败 → 全文当正文
-                body = parts[2].strip()
 
         return Document.build(
-            user_id="default",
-            namespace="default",
+            user_id=user_id,
+            namespace=namespace,
             source=str(file_path),
             text=body,
             metadata={
                 "loader": "markdown",
+                "encoding": encoding,
                 "file_name": file_path.name,
                 "title": frontmatter.get("title", file_path.stem),
                 "date": frontmatter.get("date"),

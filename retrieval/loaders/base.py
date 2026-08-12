@@ -6,7 +6,9 @@ class BaseLoader(ABC):
     """所有 loader 的抽象基类。一个文件 → 一个 Document。"""
 
     @abstractmethod
-    def load(self, path: str | Path) -> Document:
+    def load(
+        self, path: str | Path, *, user_id: str, namespace: str
+    ) -> Document:
         """
         加载单个文件为 Document。
 
@@ -31,16 +33,20 @@ class BaseLoader(ABC):
 
     @staticmethod
     def _try_read_text(file_path: Path) -> str:
-        """先 UTF-8，失败再 gbk。都不行就抛 UnicodeDecodeError。"""
-        for encoding in ("utf-8", "gbk"):
+        """先 UTF-8，失败再 GB18030。都不行就抛 UnicodeDecodeError。"""
+        return BaseLoader._try_read_text_with_encoding(file_path)[0]
+
+    @staticmethod
+    def _try_read_text_with_encoding(file_path: Path) -> tuple[str, str]:
+        """Read text and return both content and the encoding that succeeded."""
+        for encoding in ("utf-8", "gb18030"):
             try:
-                return file_path.read_text(encoding=encoding)
+                return file_path.read_text(encoding=encoding), encoding
             except UnicodeDecodeError:
                 continue
         raise UnicodeDecodeError(
-            "utf-8/gbk",
+            "utf-8/gb18030",
             b"",
             0, 1,
-            f"无法以 UTF-8 或 GBK 解码: {file_path}"
+            f"无法以 UTF-8 或 GB18030 解码: {file_path}"
         )
-    

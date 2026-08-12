@@ -1,6 +1,11 @@
 import hashlib
 from dataclasses import dataclass, field
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
+
+
+def _freeze_mapping(values: Mapping[str, Any] | None) -> Mapping[str, Any]:
+    return MappingProxyType(dict(values or {}))
 
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -27,7 +32,7 @@ class Document:
     source: str          # 原始路径或 URL
     text: str            # 全文
     checksum: str        # sha256(text)，构造时自动算
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
 
     @staticmethod
     def build(
@@ -53,7 +58,7 @@ class Document:
             source=source,
             text=text,
             checksum=checksum,
-            metadata=metadata or {},
+            metadata=_freeze_mapping(metadata),
         )
 
 # 边界：loader 的返回值类型声明为 `Document`。
@@ -71,7 +76,7 @@ class Chunk:
     start_char: int
     end_char: int
     heading_path: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
 
     @staticmethod
     def build(
@@ -103,7 +108,7 @@ class Chunk:
             start_char=start_char,
             end_char=end_char,
             heading_path=heading_path,
-            metadata=metadata or {},
+            metadata=_freeze_mapping(metadata),
         )
 
     @staticmethod
@@ -122,7 +127,7 @@ class RetrievalResult:
     chunk: Chunk
     score: float
     retriever: str                    # "bm25" / "dense" / "hybrid"
-    score_components: dict[str, float] = field(default_factory=dict)
+    score_components: Mapping[str, float] = field(default_factory=lambda: MappingProxyType({}))
     # 例: {"bm25": 0.72, "dense": 0.65, "rrf": 0.018}
     
     @staticmethod
@@ -136,7 +141,7 @@ class RetrievalResult:
             chunk=chunk,
             score=score,
             retriever=retriever,
-            score_components=score_components or {},
+            score_components=_freeze_mapping(score_components),
         )
 # **边界**：retriever 的输入是 `str`（查询文本），输出是 `list[RetrievalResult]`
 # `score_components` 在 hybrid 模式下把 BM25 和 dense 各自的分数都保留——将来调参时能看到是哪一路贡献的
@@ -146,7 +151,7 @@ class RAGAnswer:
     answer: str
     contexts: list[RetrievalResult]
     citations: list[str]              # 引用的 chunk_id 列表
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
 
     @staticmethod
     def build(
