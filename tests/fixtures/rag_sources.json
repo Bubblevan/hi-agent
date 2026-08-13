@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "dataset_id": "hi-agent-rag-task-1",
+  "description": "固定的 RAG 任务一测试数据：Hello Agents PDF 与 Bubblevan 博客 Markdown。",
+  "sources": [
+    {
+      "id": "hello-agents-sample-paper",
+      "kind": "pdf",
+      "path": "../hello-agents/Co-creation-projects/healer-666-Academic-Data-Agent/data/sample_paper.pdf",
+      "user_id": "bubblevan",
+      "namespace": "hello-agents",
+      "bytes": 666748,
+      "sha256": "0ab04a34fba4516992763b1c94b51948765621e71a86613255fd745fb58d5556"
+    },
+    {
+      "id": "blog-vibe-coding",
+      "kind": "markdown",
+      "path": "../Hugo/bubblevan.github.io/content/blog/2026/2026-07-11-vibe-coding.md",
+      "user_id": "bubblevan",
+      "namespace": "bubblevan-blog",
+      "bytes": 33556,
+      "sha256": "19582a7d75c65ff5bde68eac4a95acbaea2528267a9e680d52c50b529d4f9f28"
+    },
+    {
+      "id": "blog-agent-memory",
+      "kind": "markdown",
+      "path": "../Hugo/bubblevan.github.io/content/blog/2026/2026-07-22-agent-memory.md",
+      "user_id": "bubblevan",
+      "namespace": "bubblevan-blog",
+      "bytes": 36786,
+      "sha256": "7fe5d764e466f98c297f89ba43a8c8d14d06bfa929b103e94e736223bab281a8"
+    },
+    {
+      "id": "blog-pytest-intro",
+      "kind": "markdown",
+      "path": "../Hugo/bubblevan.github.io/content/blog/2026/2026-07-21-pytest-intro.md",
+      "user_id": "bubblevan",
+      "namespace": "bubblevan-blog",
+      "bytes": 17867,
+      "sha256": "ba2835def61c47358edf651726158888a7dab46ed9a06e8e6eaa158f7c5200c9"
+    },
+    {
+      "id": "blog-deep-research-workflow",
+      "kind": "markdown",
+      "path": "../Hugo/bubblevan.github.io/content/blog/2025/2025-11-13-deepResearch-workflow.md",
+      "user_id": "bubblevan",
+      "namespace": "bubblevan-blog",
+      "bytes": 10041,
+      "sha256": "15fe005ee3c46649ca7917148c95c2da627b7c9bbaf366eb04c83da393af85bc"
+    },
+    {
+      "id": "blog-ai-skill-tree",
+      "kind": "markdown",
+      "path": "../Hugo/bubblevan.github.io/content/blog/2026/2026-08-06-ai-skill-tree.md",
+      "user_id": "bubblevan",
+      "namespace": "bubblevan-blog",
+      "bytes": 3533,
+      "sha256": "d173ea64f358654b46a86cbc89595ea1f7f2edb7365f2556bc479dd62603f807"
+    }
+  ]
+}

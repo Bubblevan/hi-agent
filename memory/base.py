@@ -79,6 +79,8 @@ class MemoryConfig(BaseModel):
     neo4j_uri: Optional[str] = None
     neo4j_user: Optional[str] = None
     neo4j_password: Optional[str] = None
+    neo4j_database: Optional[str] = None
+    neo4j_enabled: bool = False
     
     # 嵌入服务配置
     embedding_model: str = "qwen3.7-text-embedding"  # 或 sentence-transformers/all-MiniLM-L6-v2
@@ -97,6 +99,9 @@ class MemoryConfig(BaseModel):
             neo4j_uri=os.getenv("NEO4J_URI"),
             neo4j_user=os.getenv("NEO4J_USERNAME"),
             neo4j_password=os.getenv("NEO4J_PASSWORD"),
+            neo4j_database=os.getenv("NEO4J_DATABASE"),
+            neo4j_enabled=os.getenv("NEO4J_ENABLED", "false").lower()
+            in {"1", "true", "yes"},
         )
     
 # ============================================================

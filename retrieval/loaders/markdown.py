@@ -23,6 +23,7 @@ class MarkdownLoader(BaseLoader):
     def load(
         self, path: str | Path, *, user_id: str, namespace: str
     ) -> Document:
+        self._validate_tenant_context(user_id=user_id, namespace=namespace)
         file_path = self._resolve(path)
         raw, encoding = self._try_read_text_with_encoding(file_path)
 

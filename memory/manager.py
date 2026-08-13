@@ -32,7 +32,8 @@ class MemoryManager:
         enable_working: bool = True,
         enable_episodic: bool = False,
         enable_semantic: bool = False,
-        enable_perceptual: bool = False
+        enable_perceptual: bool = False,
+        neo4j_store: Optional[Any] = None,
     ):
         """
         初始化记忆管理器
@@ -47,6 +48,20 @@ class MemoryManager:
         # 配置对象：为空则使用默认配置，所有子记忆模块共享该配置
         self.config = config or MemoryConfig()
         self.user_id = user_id
+
+        # Neo4j is an optional graph projection.  The existing SQLite/Qdrant
+        # paths stay usable when it is disabled or unavailable.
+        self.graph_store = neo4j_store
+        self.graph_sync_errors: List[str] = []
+        if self.graph_store is None and self.config.neo4j_enabled:
+            from .storage.neo4j import Neo4jMemoryStore
+
+            self.graph_store = Neo4jMemoryStore(
+                uri=self.config.neo4j_uri,
+                user=self.config.neo4j_user,
+                password=self.config.neo4j_password,
+                database=self.config.neo4j_database,
+            )
 
         # 获取全局嵌入器单例
         # 设计考量：所有记忆类型的向量检索复用同一个嵌入器，避免重复加载模型/建立连接
@@ -124,7 +139,96 @@ class MemoryManager:
 
         # 分发到对应记忆类型的 add 方法执行实际存储
         memory_id = self.memory_types[memory_type].add(item, **kwargs)
+        self._project_to_graph(item)
         return memory_id
+
+    def _project_to_graph(self, item: MemoryItem) -> None:
+        """Best-effort write to Neo4j; primary Memory storage remains authoritative."""
+        if self.graph_store is None:
+            return
+        try:
+            if not self.graph_store.upsert(item):
+                raise RuntimeError(f"Neo4j rejected memory {item.id}")
+        except Exception as exc:
+            message = f"Neo4j graph projection failed for {item.id}: {exc}"
+            self.graph_sync_errors.append(message)
+            print(message)
+
+    def link_memories(
+        self,
+        source_id: str,
+        target_id: str,
+        relation: str = "RELATED_TO",
+        weight: float = 1.0,
+    ) -> bool:
+        """Create a relationship between two memories belonging to this user."""
+        if self.graph_store is None:
+            raise RuntimeError("Neo4j graph store is not enabled")
+        return self.graph_store.relate(
+            source_id,
+            target_id,
+            self.user_id,
+            relation=relation,
+            weight=weight,
+        )
+
+    def retrieve_related_memories(
+        self,
+        memory_id: str,
+        relation: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[MemoryItem]:
+        """Traverse Neo4j relationships without crossing the current tenant."""
+        if self.graph_store is None:
+            raise RuntimeError("Neo4j graph store is not enabled")
+        return self.graph_store.related(
+            memory_id,
+            self.user_id,
+            relation=relation,
+            limit=limit,
+        )
+
+    def update_memory(
+        self,
+        memory_id: str,
+        content: Optional[str] = None,
+        importance: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Update the primary Memory record and refresh its graph projection."""
+        for memory in self.memory_types.values():
+            if not hasattr(memory, "update"):
+                continue
+            if memory.update(
+                memory_id,
+                content=content,
+                importance=importance,
+                user_id=self.user_id,
+                metadata=metadata,
+            ):
+                if self.graph_store is not None:
+                    projected = self.graph_store.get(memory_id, self.user_id)
+                    if projected is not None:
+                        if content is not None:
+                            projected.content = content
+                        if importance is not None:
+                            projected.importance = max(0.0, min(1.0, importance))
+                        if metadata is not None:
+                            projected.metadata = metadata
+                        self._project_to_graph(projected)
+                return True
+        return False
+
+    def delete_memory(self, memory_id: str) -> bool:
+        """Delete a Memory record and its graph projection for this user."""
+        for memory in self.memory_types.values():
+            if not hasattr(memory, "delete"):
+                continue
+            if memory.delete(memory_id, user_id=self.user_id):
+                if self.graph_store is not None:
+                    self.graph_store.delete(memory_id, self.user_id)
+                return True
+        return False
     
     def retrieve_memories(
         self,
@@ -295,7 +399,45 @@ class MemoryManager:
             total_report.skipped_count += report.skipped_count
             total_report.errors.extend(report.errors)
 
+        if self.graph_store is not None:
+            self.sync_graph()
+
         return total_report
+
+    def sync_graph(self) -> int:
+        """Rebuild this user's graph projection from the primary Memory stores."""
+        if self.graph_store is None:
+            return 0
+        self.graph_store.clear(self.user_id)
+        synced = 0
+        for memory_type, memory in self.memory_types.items():
+            items = []
+            if hasattr(memory, "_items"):
+                items = list(memory._items)
+            else:
+                store = getattr(memory, "store", None)
+                if store is not None and hasattr(store, "query"):
+                    for doc in store.query(
+                        memory_type=memory_type,
+                        user_id=self.user_id,
+                        limit=100000,
+                    ):
+                        items.append(
+                            MemoryItem(
+                                id=doc["id"],
+                                user_id=doc.get("user_id", self.user_id),
+                                content=doc["content"],
+                                memory_type=memory_type,
+                                timestamp=datetime.fromisoformat(doc["timestamp"]),
+                                importance=doc["importance"],
+                                metadata=doc.get("metadata", {}),
+                            )
+                        )
+            for item in items:
+                if item.user_id == self.user_id:
+                    self._project_to_graph(item)
+                    synced += 1
+        return synced
     
     def consolidate_memories(
         self,
@@ -351,8 +493,12 @@ class MemoryManager:
                 },
             )
             self.memory_types[to_type].add(target_item)
+            self._project_to_graph(target_item)
             self._mark_consolidated(item, from_type, to_type, consolidation_key)
             consolidated += 1
+
+        if self.graph_store is not None:
+            self.sync_graph()
 
         print(f"已将 {consolidated} 条记忆从 {from_type} 巩固到 {to_type}")
         return consolidated
@@ -439,11 +585,20 @@ class MemoryManager:
             # 清空指定类型
             if memory_type in self.memory_types:
                 total = self.memory_types[memory_type].clear(user_id=self.user_id)
+            if self.graph_store is not None:
+                self.graph_store.clear(self.user_id, memory_type=memory_type)
         else:
             # 清空所有已启用类型
             for mem_type in self.memory_types.values():
                 total += mem_type.clear(user_id=self.user_id)
+            if self.graph_store is not None:
+                self.graph_store.clear(self.user_id)
         return total
+
+    def close(self) -> None:
+        """Release optional graph resources owned by this manager."""
+        if self.graph_store is not None and hasattr(self.graph_store, "close"):
+            self.graph_store.close()
     
     def get_stats(self) -> Dict[str, Any]:
         """

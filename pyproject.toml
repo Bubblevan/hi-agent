@@ -1,0 +1,30 @@
+[project]
+name = "hi-agent"
+version = "0.1.0"
+description = "A self-learning Agent and RAG implementation based on Hello Agents"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "dashscope>=1.25.0",
+    "markitdown[pdf]>=0.1.0",
+    "neo4j>=5.28.0",
+    "openai>=1.68.0",
+    "pydantic>=2.7.0,<3",
+    "python-dotenv>=1.0.1",
+    "pyyaml>=6.0.2",
+    "qdrant-client>=1.14.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-cov>=5.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.uv]
+default-groups = ["dev"]

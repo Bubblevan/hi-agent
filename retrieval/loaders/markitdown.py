@@ -64,6 +64,7 @@ class MarkitdownLoader(BaseLoader):
         """
         加载文件，根据扩展名分派到不同的处理逻辑，最终返回 Document。
         """
+        self._validate_tenant_context(user_id=user_id, namespace=namespace)
         file_path = self._resolve(path)
         suffix = file_path.suffix.lower()
 

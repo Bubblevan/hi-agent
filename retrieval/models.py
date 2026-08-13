@@ -71,6 +71,7 @@ class Chunk:
     document_id: str
     user_id: str
     namespace: str
+    source: str
     content: str
     position: int        # 在文档中的序号，0-based，单调递增
     start_char: int
@@ -94,6 +95,13 @@ class Chunk:
         传入完整 Document（不是 document_id 字符串），
         因为 chunk_id 依赖 document.checksum。
         """
+        if position < 0:
+            raise ValueError("chunk position must be non-negative")
+        if start_char < 0 or end_char < start_char or end_char > len(document.text):
+            raise ValueError("invalid source span")
+        if document.text[start_char:end_char] != content:
+            raise ValueError("source span does not match chunk content")
+
         normalized = _normalize_whitespace(content)
         chunk_id = _sha256(
             f"{document.document_id}:{document.checksum}:{position}:{normalized}"
@@ -103,6 +111,7 @@ class Chunk:
             document_id=document.document_id,
             user_id=document.user_id,
             namespace=document.namespace,
+            source=document.source,
             content=content,
             position=position,
             start_char=start_char,

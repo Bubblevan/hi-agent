@@ -2,16 +2,19 @@
 
 # 作为工厂入口，让 pipeline 完全不依赖具体 splitter 类名
 from retrieval.models import Document
-from retrieval.splitters.base import TextSplitter
+from retrieval.splitters.base import SplitterParams, TextSplitter
 from retrieval.splitters.recursive import RecursiveSplitter
 from retrieval.splitters.markdown import MarkdownSplitter
 
-def get_splitter(document: Document) -> TextSplitter:
+def get_splitter(
+    document: Document,
+    params: SplitterParams | None = None,
+) -> TextSplitter:
     """根据文档元数据选择合适的分块器"""
     loader = document.metadata.get("loader", "")
     if loader in ("markdown", "markitdown"):
-        return MarkdownSplitter()
-    return RecursiveSplitter()
+        return MarkdownSplitter(params=params)
+    return RecursiveSplitter(params=params)
 
 # 这样 pipeline 中只需要：
 # ```python

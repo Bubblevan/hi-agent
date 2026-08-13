@@ -3,7 +3,12 @@ from __future__ import annotations
 import pytest
 
 from retrieval.models import Document
-from retrieval.splitters.base import ApproxTokenCounter, SplitterParams
+from retrieval.splitters import get_splitter
+from retrieval.splitters.base import (
+    ApproxTokenCounter,
+    SplitterParams,
+    TokenizerTokenCounter,
+)
 from retrieval.splitters.markdown import MarkdownSplitter
 from retrieval.splitters.recursive import RecursiveSplitter
 
@@ -24,6 +29,47 @@ def test_approx_counter_does_not_double_count_pure_cjk() -> None:
     assert counter.count("你好世界") == 4
     assert counter.count("你好 world!") == 5
     assert counter.count("") == 0
+
+
+class FakeTokenizer:
+    def encode(self, text: str, *, add_special_tokens: bool = False) -> list[int]:
+        tokens = [index for index, _ in enumerate(text.split(), start=1)]
+        if add_special_tokens:
+            return [101, *tokens, 102]
+        return tokens
+
+
+def test_tokenizer_counter_uses_target_tokenizer() -> None:
+    counter = TokenizerTokenCounter(FakeTokenizer())
+
+    assert counter.count("hello world") == 2
+    assert counter.count("hello_world_without_spaces") == 1
+
+
+def test_tokenizer_counter_can_include_special_tokens() -> None:
+    counter = TokenizerTokenCounter(FakeTokenizer(), add_special_tokens=True)
+
+    assert counter.count("hello world") == 4
+
+
+def test_splitter_params_rejects_object_without_count_method() -> None:
+    with pytest.raises(TypeError, match="token_counter"):
+        SplitterParams(token_counter=object())
+
+
+def test_splitter_factory_accepts_target_token_counter() -> None:
+    text = "one two three four"
+    counter = TokenizerTokenCounter(FakeTokenizer())
+    document = make_document(text)
+
+    splitter = get_splitter(
+        document,
+        params=SplitterParams(chunk_size=2, chunk_overlap=0, token_counter=counter),
+    )
+    chunks = splitter.split(document)
+
+    assert len(chunks) == 2
+    assert all(counter.count(chunk.content) <= 2 for chunk in chunks)
 
 
 def test_splitter_params_reject_invalid_budgets() -> None:

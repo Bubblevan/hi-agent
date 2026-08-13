@@ -22,6 +22,14 @@ class BaseLoader(ABC):
     # ---------- 共享工具 ----------
 
     @staticmethod
+    def _validate_tenant_context(*, user_id: str, namespace: str) -> None:
+        """Reject missing isolation fields before reading or converting a file."""
+        if not isinstance(user_id, str) or not user_id.strip():
+            raise ValueError("user_id must be a non-empty string")
+        if not isinstance(namespace, str) or not namespace.strip():
+            raise ValueError("namespace must be a non-empty string")
+
+    @staticmethod
     def _resolve(path: str | Path) -> Path:
         """校验路径存在且非空，返回 resolved Path。所有子类在 load() 第一行调用。"""
         p = Path(path).resolve()

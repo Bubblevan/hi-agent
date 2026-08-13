@@ -22,6 +22,42 @@ class TokenCounter(Protocol):
     def count(self, text: str) -> int: ...
 
 
+@dataclass(frozen=True)
+class TokenizerTokenCounter:
+    """Adapter for a model tokenizer's ``encode`` method.
+
+    The returned count is exact relative to the injected tokenizer. This class
+    does not download a tokenizer or assume that a provider's model name maps
+    to a locally available vocabulary.
+    """
+
+    tokenizer: object
+    add_special_tokens: bool = False
+
+    def __post_init__(self) -> None:
+        if not callable(getattr(self.tokenizer, "encode", None)):
+            raise TypeError("tokenizer must provide a callable encode method")
+
+    def count(self, text: str) -> int:
+        if not isinstance(text, str):
+            raise TypeError("text must be a string")
+
+        encode = self.tokenizer.encode
+        try:
+            tokens = encode(text, add_special_tokens=self.add_special_tokens)
+        except TypeError:
+            # Some lightweight tokenizer adapters only accept the text value.
+            tokens = encode(text)
+
+        try:
+            count = len(tokens)
+        except TypeError as exc:
+            raise TypeError("tokenizer.encode must return a sized sequence") from exc
+        if count < 0:
+            raise ValueError("tokenizer returned a negative token count")
+        return count
+
+
 _NON_CJK_TOKEN_RE = re.compile(r"[A-Za-z0-9_]+|[^\w\s]", re.UNICODE)
 
 
@@ -89,3 +125,5 @@ class SplitterParams:
             raise ValueError("chunk_overlap cannot be negative")
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError("chunk_overlap must be smaller than chunk_size")
+        if not callable(getattr(self.token_counter, "count", None)):
+            raise TypeError("token_counter must provide a callable count method")

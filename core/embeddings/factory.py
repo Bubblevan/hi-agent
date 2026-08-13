@@ -30,7 +30,7 @@ def get_text_embedder(
         try:
             return DashScopeEmbedder(
                 api_key=api_key or env_api_key,
-                model=model_name or env_model or "qwen3.7-text-embedding",
+                model=model_name or env_model or DashScopeEmbedder.DEFAULT_MODEL,
                 dimension=dimension or DashScopeEmbedder.DEFAULT_DIMENSION,
                 base_url=env_base_url,
             )

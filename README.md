@@ -28,10 +28,25 @@ hi-agent/
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1. 创建 uv 环境并安装依赖
 
 ```bash
-pip install openai python-dotenv pydantic
+uv sync
+```
+
+这会在项目目录创建 `.venv`，并根据 `pyproject.toml` 和 `uv.lock` 安装依赖。
+后续命令通过 `uv run` 执行，避免使用系统或 Conda base 环境：
+
+```bash
+uv run pytest
+uv run python test/01-client.py
+```
+
+如果本机 uv 的默认缓存目录没有写权限，可以指定项目内缓存目录：
+
+```bash
+uv --cache-dir .uv-cache sync
+uv --cache-dir .uv-cache run pytest
 ```
 
 ### 2. 配置环境变量

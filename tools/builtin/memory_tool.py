@@ -361,17 +361,12 @@ class MemoryTool(MyTool):
         if not memory_id:
             return "错误: 需要提供 memory_id"
         try:
-            updated = False
-            for mem_type in self.manager.memory_types.values():
-                if hasattr(mem_type, 'update'):
-                    if mem_type.update(
-                        memory_id,
-                        content=content,
-                        importance=importance,
-                        user_id=self.user_id,
-                    ):
-                        updated = True
-                        break
+            updated = self.manager.update_memory(
+                memory_id,
+                content=content,
+                importance=importance,
+                metadata=kwargs.get("metadata"),
+            )
             if updated:
                 return f"记忆 {memory_id[:8]} 已更新"
             else:
@@ -386,12 +381,7 @@ class MemoryTool(MyTool):
         if not memory_id:
             return "错误: 需要提供 memory_id"
         try:
-            deleted = False
-            for mem_type in self.manager.memory_types.values():
-                if hasattr(mem_type, 'delete'):
-                    if mem_type.delete(memory_id, user_id=self.user_id):
-                        deleted = True
-                        break
+            deleted = self.manager.delete_memory(memory_id)
             if deleted:
                 return f"记忆 {memory_id[:8]} 已删除"
             else:

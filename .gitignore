@@ -25,6 +25,7 @@ venv/
 env/
 ENV/
 .venv/
+.uv-cache/
 
 # IDE
 .vscode/
@@ -46,6 +47,7 @@ log/
 
 # Test outputs
 .pytest_cache/
+.pytest-tmp*/
 .coverage
 htmlcov/
 .tox/

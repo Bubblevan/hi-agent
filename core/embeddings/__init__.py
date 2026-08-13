@@ -1,5 +1,9 @@
 from .base import BaseEmbedder, EmbedderBase
-from .dashscope import DashScopeEmbedder
+from .dashscope import (
+    DashScopeEmbedder,
+    EmbeddingRequestError,
+    EmbeddingResponseError,
+)
 from .factory import get_global_embedder, get_text_embedder
 from .fake import FakeEmbedder
 from .local import LocalTransformerEmbedder
@@ -8,6 +12,8 @@ from .tfidf import TFIDFEmbedder
 __all__ = [
     "BaseEmbedder",
     "DashScopeEmbedder",
+    "EmbeddingRequestError",
+    "EmbeddingResponseError",
     "EmbedderBase",
     "FakeEmbedder",
     "LocalTransformerEmbedder",

@@ -13,7 +13,9 @@ from retrieval.models import Chunk, Document
 from retrieval.splitters.base import SplitterParams
 
 
-_ATX_HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
+_ATX_HEADING_RE = re.compile(
+    r"^[ \t]{0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$"
+)
 _FENCE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 
 
@@ -48,7 +50,9 @@ class MarkdownSplitter:
         return [
             Chunk.build(
                 document=document,
-                content=rc["content"],
+                # The span is authoritative. Re-joining stripped paragraphs
+                # would drop headings and original whitespace between them.
+                content=document.text[rc["start"] : rc["end"]],
                 position=i,
                 start_char=rc["start"],
                 end_char=rc["end"],
