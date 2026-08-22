@@ -2,7 +2,13 @@ import pytest
 
 from context.models import ContextBudget, ContextItem
 
-
+def test_context_budget_rejects_output_reserve_equal_to_hard_limit():
+    with pytest.raises(ValueError):
+        ContextBudget(
+            soft_limit=50,
+            hard_limit=100,
+            output_reserve=100,
+        )
 def test_valid_context_item_can_be_created():
     item = ContextItem(
         item_id="task:current",
