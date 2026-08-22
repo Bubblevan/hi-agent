@@ -17,11 +17,10 @@ hi-agent/
 │   ├── base.py        # 工具基类
 │   ├── registry.py    # 工具注册表
 │   └── calculator.py  # 示例：计算器工具
-├── test/              # 测试脚本
-│   ├── 01-client.py   # 测试 LLM 客户端
-│   ├── 02-message.py  # 测试消息类型
-│   ├── 03-agent-base.py # 测试 Agent 基类
-│   └── 04-simple-agent.py # 测试简单 Agent
+├── test/              # 原始章节演示脚本（保留作学习对照）
+├── tests/             # pytest 测试
+│   └── unit/learning/ # 从 test/ 迁移的离线学习单测
+├── docs/learning-notes/ # 个人学习过程、疑问和实验记录
 ├── main.py            # 主入口
 └── .env               # 环境变量配置
 ```
@@ -71,14 +70,14 @@ LLM_MODEL_ID=deepseek-v4-flash
 ### 3. 运行测试
 
 ```bash
-# 测试 LLM 客户端
-python test/01-client.py
+# 运行全部 pytest
+uv run pytest
 
-# 测试 Agent 基类
-python test/03-agent-base.py
+# 只运行从章节脚本迁移的学习单测
+uv run pytest tests/unit/learning
 
-# 测试带工具的 Simple Agent
-python test/04-simple-agent.py
+# 如需体验真实模型调用，仍可手动运行原始章节脚本
+uv run python test/01-client.py
 ```
 
 ## 学习路线
@@ -87,6 +86,7 @@ python test/04-simple-agent.py
 2. **02-message**: 理解消息格式和对话历史管理
 3. **03-agent-base**: 理解 Agent 基类设计和状态管理
 4. **04-simple-agent**: 理解工具调用和 ReAct 循环
+5. **学习笔记**：从 [`docs/learning-notes/README.md`](docs/learning-notes/README.md) 开始记录目标、验证证据、疑问和下一步实验
 
 ## 支持的模型提供商
 

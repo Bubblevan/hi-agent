@@ -174,3 +174,32 @@ class ContextTrace:
                 f"total_input_tokens ({self.total_input_tokens}) exceeds "
                 f"available_input_tokens ({self.available_input_tokens})"
             )
+
+@dataclass(frozen=True, slots=True)
+class FormattedMessage:
+    """OpenAI-compatible 格式化消息。
+
+    包含 Provider 消息数据（role、content）和旁路追踪数据（item_id、source）。
+
+    Attributes:
+        role: OpenAI-compatible 消息角色（system/user/assistant）。
+        content: 原始消息正文，未经修改。
+        item_id: 对应的 ContextItem ID，用于追踪。
+        source: 内容来源（如 hardcoded、rag、user）。
+    """
+    role: str
+    content: str
+    item_id: str
+    source: str
+
+    def __post_init__(self) -> None:
+        if self.role not in ("system", "user", "assistant"):
+            raise ValueError(
+                f"role must be 'system', 'user', or 'assistant', got {self.role}"
+            )
+        if not isinstance(self.content, str):
+            raise TypeError("content must be a string")
+        if not isinstance(self.item_id, str) or not self.item_id.strip():
+            raise ValueError("item_id must not be blank")
+        if not isinstance(self.source, str) or not self.source.strip():
+            raise ValueError("source must not be blank")

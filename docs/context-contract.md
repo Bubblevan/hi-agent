@@ -258,3 +258,71 @@ ContextTrace V1 不处理：
 - ContextMessage 内容；
 - RAG、Memory 或工具调用追踪。
 
+## 12. OpenAI-Compatible Formatter V1 契约
+
+Formatter 将 provider-neutral 的 `ContextMessage` 转换为带 Provider role
+的 `FormattedMessage`。
+
+Formatter 只负责角色映射和追踪字段传递，不执行网络请求。
+
+### 12.1 输入
+
+```python
+format_openai_messages(
+    messages: list[ContextMessage],
+) -> list[FormattedMessage]
+````
+
+### 12.2 输出字段
+
+| 字段        | 含义                     |
+| --------- | ---------------------- |
+| `role`    | OpenAI-compatible 消息角色 |
+| `content` | 原始消息正文，不允许修改           |
+| `item_id` | 对应 ContextItem 的稳定 ID  |
+| `source`  | 上下文来源                  |
+
+`item_id` 和 `source` 属于旁路追踪字段。真正生成 Provider 请求时，
+只能向 API 发送 `role` 和 `content`，不能把追踪字段写入正文。
+
+### 12.3 kind 到 role 的映射
+
+| kind        | role        |
+| ----------- | ----------- |
+| `system`    | `system`    |
+| `task`      | `user`      |
+| `user`      | `user`      |
+| `assistant` | `assistant` |
+| `retrieval` | `user`      |
+
+以下 kind 在 V1 中必须显式失败：
+
+* `conversation`：没有携带原始对话角色；
+* `tool_result`：缺少 `tool_call_id`；
+* 其他未知 kind。
+
+### 12.4 行为规则
+
+1. 每个 ContextMessage 对应一个 FormattedMessage。
+2. 输出顺序必须与输入顺序一致。
+3. content 必须保持原样。
+4. item_id 和 source 必须保持原样。
+5. 不合并消息。
+6. 不在 content 中添加追踪前缀。
+7. 不支持的 kind 必须抛出 ValueError。
+8. 空输入返回空列表。
+9. 相同输入必须产生相同输出。
+
+### 12.5 非目标
+
+Formatter V1 不处理：
+
+* LLM 网络请求；
+  -流式输出；
+* Provider 响应；
+* 原生工具调用；
+* tool_call_id；
+* JSON 日志；
+* token 重新计算；
+* RAG 或 Memory 查询；
+* system message 合并。
