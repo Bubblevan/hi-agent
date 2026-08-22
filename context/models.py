@@ -132,3 +132,45 @@ class ContextMessage:
             raise ValueError("source must not be blank")
         if not isinstance(self.content, str):
             raise TypeError("content must be a string")
+
+@dataclass(frozen=True, slots=True)
+class ContextTrace:
+    """上下文编译追踪记录。
+
+    记录 Compiler 的确定性决策结果，作为旁路观测。
+
+    Attributes:
+        stage: 产生该 Trace 的阶段，V1 固定为 "compiler"。
+        selected_item_ids: 被选中项目的 ID 列表，保持 selected_items 顺序。
+        dropped_item_ids: 被淘汰项目的 ID 列表，保持 dropped_items 顺序。
+        total_input_tokens: 复制自 CompiledContext.total_input_tokens。
+        available_input_tokens: 复制自 CompiledContext.available_input_tokens。
+    """
+    stage: str
+    selected_item_ids: List[str]
+    dropped_item_ids: List[str]
+    total_input_tokens: int
+    available_input_tokens: int
+
+    def __post_init__(self) -> None:
+        if self.stage != "compiler":
+            raise ValueError(
+                f"stage must be 'compiler' in V1, got {self.stage}"
+            )
+        if not isinstance(self.selected_item_ids, list):
+            raise TypeError("selected_item_ids must be a list")
+        if not isinstance(self.dropped_item_ids, list):
+            raise TypeError("dropped_item_ids must be a list")
+        if not all(isinstance(x, str) for x in self.selected_item_ids):
+            raise TypeError("selected_item_ids must contain only strings")
+        if not all(isinstance(x, str) for x in self.dropped_item_ids):
+            raise TypeError("dropped_item_ids must contain only strings")
+        if self.total_input_tokens < 0:
+            raise ValueError("total_input_tokens must be non-negative")
+        if self.available_input_tokens < 0:
+            raise ValueError("available_input_tokens must be non-negative")
+        if self.total_input_tokens > self.available_input_tokens:
+            raise ValueError(
+                f"total_input_tokens ({self.total_input_tokens}) exceeds "
+                f"available_input_tokens ({self.available_input_tokens})"
+            )

@@ -209,3 +209,52 @@ V1 不处理：
 - prompt 模板；
 - 消息序列化后的 token 重算；
 - LLM 调用。
+
+## 11. ContextTrace V1 契约
+
+ContextTrace 用于记录一次 Context Compiler 的确定性决策结果。
+
+它只负责观测和记录，不参与预算计算、项目选择或消息转换。
+
+### 11.1 输入
+
+Trace Builder 接收一个已经通过校验的 `CompiledContext`：
+
+```python
+build_context_trace(compiled: CompiledContext) -> ContextTrace
+```
+
+### 11.2 输出字段
+
+| 字段 | 含义 |
+|------|------|
+| `stage` | 产生该 Trace 的阶段，V1 固定为 `"compiler"` |
+| `selected_item_ids` | 被选中项目的 ID，保持 `selected_items` 顺序 |
+| `dropped_item_ids` | 被淘汰项目的 ID，保持 `dropped_items` 顺序 |
+| `total_input_tokens` | 复制自 `CompiledContext.total_input_tokens` |
+| `available_input_tokens` | 复制自 `CompiledContext.available_input_tokens` |
+
+### 11.3 行为规则
+
+1. `selected_item_ids` 必须与 `selected_items` 一一对应并保持顺序。
+2. `dropped_item_ids` 必须与 `dropped_items` 一一对应并保持顺序。
+3. token 统计直接复制自 `CompiledContext`，不重新计算预算。
+4. `stage` 在 V1 中固定为 `"compiler"`。
+5. Trace 不得修改传入的 `CompiledContext`。
+6. 相同 `CompiledContext` 必须产生相等的 Trace。
+7. Trace 不保存 item content。
+
+### 11.4 非目标
+
+ContextTrace V1 不处理：
+
+- 时间戳；
+- 随机 trace ID；
+- 日志输出；
+- JSON 持久化；
+- OpenTelemetry；
+- Provider 请求或响应；
+- LLM latency；
+- ContextMessage 内容；
+- RAG、Memory 或工具调用追踪。
+
