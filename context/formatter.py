@@ -17,13 +17,6 @@ KIND_TO_ROLE = {
     "retrieval": "user",
 }
 
-# 明确不支持的 kind（V1 拒绝）
-UNSUPPORTED_KINDS = {
-    "conversation",
-    "tool_result",
-    "retrieved",
-}
-
 
 def format_openai_messages(
     messages: List[ContextMessage],

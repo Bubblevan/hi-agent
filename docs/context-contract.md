@@ -271,7 +271,7 @@ Formatter 只负责角色映射和追踪字段传递，不执行网络请求。
 format_openai_messages(
     messages: list[ContextMessage],
 ) -> list[FormattedMessage]
-````
+```
 
 ### 12.2 输出字段
 
@@ -318,7 +318,7 @@ format_openai_messages(
 Formatter V1 不处理：
 
 * LLM 网络请求；
-  -流式输出；
+* 流式输出；
 * Provider 响应；
 * 原生工具调用；
 * tool_call_id；
@@ -326,3 +326,73 @@ Formatter V1 不处理：
 * token 重新计算；
 * RAG 或 Memory 查询；
 * system message 合并。
+
+## 13. OpenAI-Compatible Message Payload V1 契约
+
+Payload Builder 将内部 `FormattedMessage` 转换为可以交给
+OpenAI-compatible Chat Completions 客户端的消息字典。
+
+Payload Builder 是纯转换函数，不执行网络请求。
+
+### 13.1 输入与输出
+
+```python
+build_openai_payload(
+    messages: list[FormattedMessage],
+) -> list[dict[str, str]]
+```
+
+每个输出字典必须严格包含：
+```
+{
+    "role": message.role,
+    "content": message.content,
+}
+```
+### 13.2 行为规则
+
+每个 FormattedMessage 对应一个 payload 字典。
+
+输出顺序必须与输入顺序一致。
+
+role 和 content 必须保持原样。
+
+payload 只能包含 role 和 content。
+
+item_id 和 source 不得进入 payload。
+
+不得把追踪信息拼接进 content。
+
+空输入返回空列表。
+
+相同输入必须产生相等的 payload。
+
+不得修改传入的 FormattedMessage。
+
+### 13.3 role 校验边界
+
+FormattedMessage 负责保证 role 合法。
+
+Payload Builder 接收已经通过校验的 FormattedMessage，
+不重复定义或扩展 role 规则。
+
+### 13.4 非目标
+
+Payload V1 不处理：
+
+LLM 网络请求；
+
+model、temperature、max_tokens；
+
+流式调用；
+
+Provider 响应；
+
+JSON 序列化；
+
+token 重新计算；
+
+tool role 和 tool_call_id；
+
+日志与 Trace 持久化。
+

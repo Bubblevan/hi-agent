@@ -1,6 +1,12 @@
 import pytest
 
-from context.models import ContextBudget, ContextItem
+from context.models import (
+    ContextBudget,
+    ContextItem,
+    CompiledContext,
+    ContextMessage,
+    FormattedMessage,
+)
 
 def test_context_budget_rejects_output_reserve_equal_to_hard_limit():
     with pytest.raises(ValueError):
@@ -88,3 +94,27 @@ def test_context_item_requires_strict_boolean(required):
 def test_context_budget_rejects_invalid_ranges(values):
     with pytest.raises((TypeError, ValueError)):
         ContextBudget(**values)
+
+class TestFormattedMessageValidation:
+    """FormattedMessage 数据模型验证测试"""
+
+    def test_formatted_message_rejects_unsupported_role(self):
+        """FormattedMessage 拒绝非法的 role"""
+        with pytest.raises(ValueError, match="role"):
+            FormattedMessage(
+                role="tool",
+                content="Tool result",
+                item_id="tool-1",
+                source="tool",
+            )
+
+    def test_formatted_message_accepts_valid_roles(self):
+        """FormattedMessage 接受合法的 role"""
+        for role in ("system", "user", "assistant"):
+            msg = FormattedMessage(
+                role=role,
+                content="Content",
+                item_id="id-1",
+                source="source",
+            )
+            assert msg.role == role
