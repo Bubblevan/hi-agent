@@ -28,6 +28,21 @@
 
 这些用例目前尚未构成对真实 LLM 的评分体系。它们是确定性单元测试和集成测试的“黄金契约”。后续评估器可以在此固定格式之上，继续引入模型输出、任务成功率、令牌用量、延迟以及重复运行方差等维度，而无需改动当前的数据格式。
 
+## Executable contract dataset
+
+`tests/fixtures/context_contract_cases.jsonl` 保存少量手工审查的 V2 contract cases；
+`tests/fixtures/context_contract_cases.generated.jsonl` 是由确定性 generator 生成的 32 条结构变体。
+两者的 `expected` selection 都由 `context.selector.select_items()` 计算，不由 LLM 猜测。
+
+生成并校验数据集：
+
+```bash
+uv run python -m evals.data_generation.context_generator \
+  --output tests/fixtures/context_contract_cases.generated.jsonl
+uv run python -m evals.data_generation.context_validator \
+  tests/fixtures/context_contract_cases.generated.jsonl
+```
+
 ## RAG 微型基准（RAG Mini-Bench）
 
 `tests/fixtures/rag_eval_cases.jsonl` 包含首个扩展后的 RAG 集合：
