@@ -38,3 +38,24 @@ checks with:
 ```text
 python -m evals.rag.runner tests/fixtures/rag_eval_cases.jsonl tests/fixtures/rag_sources.json --project-root .
 ```
+
+## Candidate generation
+
+`evals.data_generation.rag_generator` sends one page at a time to an injected
+LLM client. The response is parsed as JSONL, schema-validated, checked against
+the original page text, deduplicated, and split into accepted cases plus a
+review queue. Only accepted cases should be frozen into the benchmark.
+
+For a saved response, validation is offline and does not call an API:
+
+```text
+python -m evals.data_generation.rag_generator \
+  --source tests/fixtures/sources/sample_paper.pdf \
+  --source-id hello-agents-sample-paper \
+  --response candidates.jsonl \
+  --output candidates.validated.jsonl \
+  --review-output candidates.review.jsonl
+```
+
+Omitting `--response` explicitly opts into the project's `MyLLMClient` and a
+real provider call.
