@@ -64,6 +64,27 @@ def test_generator_batches_one_request_per_page_and_injects_source_id():
     assert [item["source_id"] for item in candidates] == ["source", "source"]
     assert "=== PAGE 1 ===" in client.messages[0][0][1]["content"]
     assert "=== PAGE 2 ===" in client.messages[1][0][1]["content"]
+    assert all(
+        call[1]["extra_body"] == {"thinking": {"type": "disabled"}}
+        for call in client.messages
+    )
+
+
+def test_generator_can_explicitly_enable_thinking():
+    row = candidate()
+    client = FakeCandidateClient([json.dumps(row)])
+
+    generate_candidates(
+        client,
+        ["page one grounded"],
+        source_id="source",
+        candidates_per_page=(1,),
+        thinking_enabled=True,
+    )
+
+    assert client.messages[0][1]["extra_body"] == {
+        "thinking": {"type": "enabled"}
+    }
 
 
 def test_validator_keeps_invalid_and_duplicate_candidates_for_review():

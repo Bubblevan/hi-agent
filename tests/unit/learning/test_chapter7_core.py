@@ -68,6 +68,54 @@ def test_llm_client_provider_detection_and_invocation(monkeypatch):
     assert list(client.stream_invoke([])) == ["A", "B"]
 
 
+def test_llm_client_forwards_extra_body(monkeypatch):
+    calls = []
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="answer"))]
+            )
+
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    monkeypatch.setattr("core.llm_client.OpenAI", lambda **kwargs: fake_client)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    client = MyLLMClient(model="test-model")
+    client.invoke(
+        [{"role": "user", "content": "hi"}],
+        extra_body={"thinking": {"type": "disabled"}},
+    )
+
+    assert calls[0]["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+def test_llm_client_loads_dotenv_before_provider_detection(monkeypatch):
+    class FakeCompletions:
+        def create(self, **kwargs):
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="answer"))]
+            )
+
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    monkeypatch.setattr("core.llm_client.OpenAI", lambda **kwargs: fake_client)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    def fake_load_dotenv(path, override=False):
+        assert path == ".env.test"
+        assert override is False
+        monkeypatch.setenv("OPENAI_API_KEY", "loaded-from-dotenv")
+        return True
+
+    monkeypatch.setattr("core.llm_client.find_dotenv", lambda: ".env.test")
+    monkeypatch.setattr("core.llm_client.load_dotenv", fake_load_dotenv)
+
+    client = MyLLMClient(model="test-model")
+
+    assert client.provider == "openai"
+
+
 def test_agent_history_is_bounded_and_clear_keeps_system_prompt():
     agent = ConcreteAgent(
         "tester",

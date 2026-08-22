@@ -174,6 +174,7 @@ def generate_candidates(
     candidates_per_page: tuple[int, ...] = DEFAULT_CANDIDATES_PER_PAGE,
     temperature: float = 0.2,
     max_tokens: int = 5000,
+    thinking_enabled: bool = False,
 ) -> list[dict[str, Any]]:
     """Generate candidates one page at a time to improve quote grounding."""
 
@@ -197,6 +198,11 @@ def generate_candidates(
             ),
             temperature=temperature,
             max_tokens=max_tokens,
+            extra_body={
+                "thinking": {
+                    "type": "enabled" if thinking_enabled else "disabled"
+                }
+            },
         )
         for candidate in parse_jsonl(response):
             candidate = dict(candidate)
@@ -254,6 +260,7 @@ def generate_and_validate(
     *,
     source_id: str,
     candidates_per_page: tuple[int, ...] = DEFAULT_CANDIDATES_PER_PAGE,
+    thinking_enabled: bool = False,
 ) -> GenerationResult:
     """Generate, validate, deduplicate, and triage one source."""
 
@@ -262,6 +269,7 @@ def generate_and_validate(
         pages,
         source_id=source_id,
         candidates_per_page=candidates_per_page,
+        thinking_enabled=thinking_enabled,
     )
     report: ValidationReport = validate_candidates(
         candidates,
@@ -286,6 +294,11 @@ def main() -> int:
         help="parse a saved LLM response instead of making live calls",
     )
     parser.add_argument("--model")
+    parser.add_argument(
+        "--enable-thinking",
+        action="store_true",
+        help="enable provider thinking mode; disabled by default for JSON extraction",
+    )
     parser.add_argument("--review-output", type=Path)
     args = parser.parse_args()
 
@@ -298,7 +311,12 @@ def main() -> int:
         from core.llm_client import MyLLMClient
 
         client = MyLLMClient(model=args.model)
-        result = generate_and_validate(client, pages, source_id=args.source_id)
+        result = generate_and_validate(
+            client,
+            pages,
+            source_id=args.source_id,
+            thinking_enabled=args.enable_thinking,
+        )
         report = ValidationReport(result.accepted, result.review_queue)
         review_queue = result.review_queue
 

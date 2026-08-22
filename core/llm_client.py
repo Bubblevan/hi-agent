@@ -1,5 +1,7 @@
 import os
 from typing import List, Dict, Any, Optional, Iterator
+
+from dotenv import find_dotenv, load_dotenv
 from openai import OpenAI
 
 class MyLLMClient:
@@ -14,6 +16,10 @@ class MyLLMClient:
             provider: Optional[str] = "auto",
     ):
         # 解析提供商
+        # Load the nearest project .env without overriding variables explicitly
+        # supplied by the shell or the caller.
+        load_dotenv(find_dotenv(), override=False)
+
         self.provider = self._detect_provider(provider, api_key, base_url)
 
         # 根据提供商，智能获取凭证
@@ -80,12 +86,17 @@ class MyLLMClient:
         ]
         """
         try:
+            request_kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": kwargs.get('temperature', 0.7),
+                "max_tokens": kwargs.get('max_tokens'),
+                "stream": False,
+            }
+            if kwargs.get("extra_body") is not None:
+                request_kwargs["extra_body"] = kwargs["extra_body"]
             response = self._client.chat.completions.create(
-                model = self.model,
-                messages=messages,
-                temperature=kwargs.get('temperature', 0.7),
-                max_tokens=kwargs.get('max_tokens'),
-                stream=False
+                **request_kwargs,
             )
             # print(response)
             # 默认只生成一条，所以取第一条回复的文本内容
@@ -95,13 +106,16 @@ class MyLLMClient:
         
     def stream_invoke(self, messages: List[Dict[str, str]], **kwargs) -> Iterator[str]:
         try:
-            stream = self._client.chat.completions.create(
-                model = self.model,
-                messages=messages,
-                temperature=kwargs.get('temperature', 0.7),
-                max_tokens=kwargs.get('max_tokens'),
-                stream=True
-            )
+            request_kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": kwargs.get('temperature', 0.7),
+                "max_tokens": kwargs.get('max_tokens'),
+                "stream": True,
+            }
+            if kwargs.get("extra_body") is not None:
+                request_kwargs["extra_body"] = kwargs["extra_body"]
+            stream = self._client.chat.completions.create(**request_kwargs)
             for chunk in stream:
                 # delta 表示当前分片的增量内容，非空则通过yield返回
                 if chunk.choices[0].delta.content:
