@@ -15,7 +15,7 @@
 ## 入口
 
 - [第四章与第七章学习记录](./chapter4-and-7.md)
-- [旧 test 脚本到 pytest 的迁移索引](./test-migration.md)
+- [章节示例到 pytest 的迁移索引](./test-migration.md)
 
 ## 一个可复制的记录模板
 

@@ -17,9 +17,11 @@ hi-agent/
 │   ├── base.py        # 工具基类
 │   ├── registry.py    # 工具注册表
 │   └── calculator.py  # 示例：计算器工具
-├── test/              # 原始章节演示脚本（保留作学习对照）
 ├── tests/             # pytest 测试
-│   └── unit/learning/ # 从 test/ 迁移的离线学习单测
+│   ├── unit/           # 离线单元测试
+│   ├── integration/    # Fake Provider、真实 Provider 和外部服务测试
+│   └── unit/evals/      # 评测实现的单元测试
+├── evals/              # 评测实现和 CLI
 ├── docs/learning-notes/ # 个人学习过程、疑问和实验记录
 ├── main.py            # 主入口
 └── .env               # 环境变量配置
@@ -38,7 +40,6 @@ uv sync
 
 ```bash
 uv run pytest
-uv run python test/01-client.py
 ```
 
 如果本机 uv 的默认缓存目录没有写权限，可以指定项目内缓存目录：
@@ -73,11 +74,12 @@ LLM_MODEL_ID=deepseek-v4-flash
 # 运行全部 pytest
 uv run pytest
 
-# 只运行从章节脚本迁移的学习单测
+# 运行学习单测
 uv run pytest tests/unit/learning
 
-# 如需体验真实模型调用，仍可手动运行原始章节脚本
-uv run python test/01-client.py
+# 运行 Context 的真实 LLM eval（PowerShell）
+$env:RUN_REAL_LLM_TESTS="1"
+uv run pytest tests/integration/test_context_real_provider.py -m real_llm -s
 ```
 
 ## 学习路线
@@ -87,6 +89,19 @@ uv run python test/01-client.py
 3. **03-agent-base**: 理解 Agent 基类设计和状态管理
 4. **04-simple-agent**: 理解工具调用和 ReAct 循环
 5. **学习笔记**：从 [`docs/learning-notes/README.md`](docs/learning-notes/README.md) 开始记录目标、验证证据、疑问和下一步实验
+
+## 测试分层
+
+普通 `uv run pytest` 默认只运行离线测试，不会调用真实 LLM。真实 Context eval 使用 `real_llm` marker，并且要求显式设置 `RUN_REAL_LLM_TESTS=1`，避免普通开发测试意外消耗 API 配额。
+
+```bash
+# 离线测试
+uv run pytest -m "not real_llm"
+
+# 真实 Context Provider eval（PowerShell）
+$env:RUN_REAL_LLM_TESTS="1"
+uv run pytest tests/integration/test_context_real_provider.py -m real_llm -s
+```
 
 ## 支持的模型提供商
 
