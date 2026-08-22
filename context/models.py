@@ -104,3 +104,31 @@ class CompiledContext:
                 f"total_input_tokens ({self.total_input_tokens}) exceeds "
                 f"available_input_tokens ({self.available_input_tokens})"
             )
+
+@dataclass(frozen=True, slots=True)
+class ContextMessage:
+    """内部消息信封，provider-neutral。
+
+    这是 Context 层与 Provider 层之间的内部消息表示，
+    不是可直接发送给 OpenAI/Anthropic/DashScope 的 API 消息。
+
+    Attributes:
+        item_id: 对应的 ContextItem ID，用于追踪。
+        kind: 上下文内容类型（如 system、user、retrieval、tool_result），不等同于模型 role。
+        source: 内容来源（如 hardcoded、rag、user）。
+        content: 消息内容原文，不做任何修改。
+    """
+    item_id: str
+    kind: str
+    source: str
+    content: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.item_id, str) or not self.item_id.strip():
+            raise ValueError("item_id must not be blank")
+        if not isinstance(self.kind, str) or not self.kind.strip():
+            raise ValueError("kind must not be blank")
+        if not isinstance(self.source, str) or not self.source.strip():
+            raise ValueError("source must not be blank")
+        if not isinstance(self.content, str):
+            raise TypeError("content must be a string")

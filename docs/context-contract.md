@@ -174,3 +174,38 @@ Compiler 负责将 Selector 的选择结果组织成一次完整的编译结果�
 6. `total_input_tokens` 不得超过 `available_input_tokens`。
 7. Selector 抛出的 `BudgetExceededError` 和 `ValueError` 应继续向上传递，不捕获。
 8. 相同输入必须得到相同输出（确定性）。
+
+## 10. Message Structure V1 契约
+
+Message Structure 将 CompiledContext 转换为稳定、可追踪的内部消息序列。
+
+### 10.1 边界
+
+ContextMessage 是 provider-neutral 的内部领域对象，
+不是可直接传给 OpenAI、Anthropic 或 DashScope API 的请求消息。
+
+`kind` 表示上下文内容类型，不等同于模型消息的 `role`。
+role 映射由后续 Provider Formatter 负责。
+
+### 10.2 转换规则
+
+1. 一个 selected ContextItem 对应一个 ContextMessage。
+2. 严格保持 selected_items 的顺序，不按 kind 重新排序。
+3. 不合并多个同类 item。
+4. ContextMessage 保留 item_id、kind、source 和 content。
+5. content 必须保持原样，不能加入追踪前缀。
+6. dropped_items 不得出现在输出中。
+7. selected_items 为空时返回空列表。
+8. 相同输入必须产生相同输出。
+
+### 10.3 非目标
+
+V1 不处理：
+
+- provider role 映射；
+- tool_call_id；
+- OpenAI/Anthropic/DashScope 消息格式；
+- 多个 item 合并；
+- prompt 模板；
+- 消息序列化后的 token 重算；
+- LLM 调用。
