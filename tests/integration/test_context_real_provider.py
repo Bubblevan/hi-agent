@@ -16,6 +16,7 @@ load_dotenv()
 
 pytestmark = pytest.mark.real_llm
 
+MAX_OUTPUT_TOKENS = 256
 
 def require_real_llm_config() -> dict[str, str]:
     """只有显式启用且配置完整时，才允许运行真实 Provider 测试。"""
@@ -104,8 +105,8 @@ def test_real_openai_compatible_provider_accepts_context_payload():
     items = make_real_provider_context_items()
     budget = ContextBudget(
         soft_limit=60,
-        hard_limit=100,
-        output_reserve=20,
+        hard_limit=512,
+        output_reserve=MAX_OUTPUT_TOKENS,
     )
 
     # ContextItem → CompiledContext
@@ -136,6 +137,40 @@ def test_real_openai_compatible_provider_accepts_context_payload():
         temperature=0,
         max_tokens=32,
     )
+    # raw_response = client._client.chat.completions.create(
+    #     model=client.model,
+    #     messages=payload,
+    #     temperature=0,
+    #     max_tokens=32,
+    #     stream=False,
+    # )
+
+    # choice = raw_response.choices[0]
+    # message = choice.message
+
+    # content = message.content
+    # reasoning_content = getattr(
+    #     message,
+    #     "reasoning_content",
+    #     None,
+    # )
+    # refusal = getattr(
+    #     message,
+    #     "refusal",
+    #     None,
+    # )
+
+    # print("model:", raw_response.model)
+    # print("finish_reason:", choice.finish_reason)
+    # print("content:", repr(content))
+    # print(
+    #     "reasoning_content length:",
+    #     len(reasoning_content or ""),
+    # )
+    # print("refusal:", repr(refusal))
+    # print("usage:", raw_response.usage)
+
+    # response = content or ""
 
     # 编译结果正确。
     assert trace.selected_item_ids == [
