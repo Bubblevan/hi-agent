@@ -1,0 +1,38 @@
+{
+  "eval_version": "context-baseline-v0",
+  "recorded_at": "2026-08-22",
+  "git_commit": "not_recorded",
+  "model": "not_recorded",
+  "embedding_model": "not_recorded",
+  "unit_tests": {
+    "passed": 137,
+    "skipped": 1,
+    "failed": 0
+  },
+  "memory_eval": {
+    "query_count": 71,
+    "positive_count": 48,
+    "abstention_count": 23,
+    "thresholds": {
+      "none": {
+        "recall_at_5": 0.9375,
+        "abstention_recall": 0.0
+      },
+      "0.35": {
+        "recall_at_5": 0.8542,
+        "abstention_recall": 0.3043
+      }
+    },
+    "other_metrics": ["recall", "mrr", "ndcg", "abstention", "leakage", "latency"],
+    "full_report": "not_recorded"
+  },
+  "rag_smoke_eval": {
+    "question_count": 2,
+    "answer_success": {"passed": 2, "total": 2},
+    "retrieval_expected_terms": {"passed": 2, "total": 2},
+    "answer_expected_terms": {"passed": 2, "total": 2},
+    "citation_validity": {"passed": 2, "total": 2}
+  },
+  "service_cost": "not_recorded",
+  "average_input_tokens": "not_recorded"
+}
