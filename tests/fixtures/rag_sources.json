@@ -6,7 +6,7 @@
     {
       "id": "hello-agents-sample-paper",
       "kind": "pdf",
-      "path": "../hello-agents/Co-creation-projects/healer-666-Academic-Data-Agent/data/sample_paper.pdf",
+      "path": "tests/fixtures/sources/sample_paper.pdf",
       "user_id": "bubblevan",
       "namespace": "hello-agents",
       "bytes": 666748,
