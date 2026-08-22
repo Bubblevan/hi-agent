@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, List
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,3 +49,58 @@ class ContextBudget:
             raise ValueError("output_reserve must be non-negative")
         if self.output_reserve >= self.hard_limit:
             raise ValueError("output_reserve must be less than hard_limit")
+
+@dataclass(frozen=True, slots=True)
+class CompiledContext:
+    """Compiler 编译结果。
+
+    Attributes:
+        selected_items: 最终被选中的上下文项，保持输入顺序。
+        dropped_items: 未被选中的 optional 项，保持输入顺序。
+        total_input_tokens: selected_items 的 token_count 总和。
+        available_input_tokens: 扣除 output_reserve 后的输入预算（hard_limit - output_reserve）。
+    """
+    selected_items: List[ContextItem]
+    dropped_items: List[ContextItem]
+    total_input_tokens: int
+    available_input_tokens: int
+
+    def __post_init__(self) -> None:
+        # 类型检查
+        if not isinstance(self.selected_items, list):
+            raise TypeError("selected_items must be a list")
+        if not isinstance(self.dropped_items, list):
+            raise TypeError("dropped_items must be a list")
+        if not all(isinstance(item, ContextItem) for item in self.selected_items):
+            raise TypeError("selected_items must contain only ContextItem")
+        if not all(isinstance(item, ContextItem) for item in self.dropped_items):
+            raise TypeError("dropped_items must contain only ContextItem")
+
+        # 不允许有交集
+        selected_ids = {item.item_id for item in self.selected_items}
+        dropped_ids = {item.item_id for item in self.dropped_items}
+        if selected_ids.intersection(dropped_ids):
+            raise ValueError(
+                "selected_items and dropped_items must not overlap. "
+                f"Overlapping IDs: {selected_ids.intersection(dropped_ids)}"
+            )
+
+        # 计算值必须匹配
+        if self.total_input_tokens != sum(item.token_count for item in self.selected_items):
+            raise ValueError(
+                f"total_input_tokens ({self.total_input_tokens}) does not match "
+                f"sum of selected_items token_count ({sum(item.token_count for item in self.selected_items)})"
+            )
+
+        if self.available_input_tokens < 0:
+            raise ValueError("available_input_tokens must be non-negative")
+
+        if self.total_input_tokens < 0:
+            raise ValueError("total_input_tokens must be non-negative")
+
+        # total_input_tokens 不能超过 available_input_tokens
+        if self.total_input_tokens > self.available_input_tokens:
+            raise ValueError(
+                f"total_input_tokens ({self.total_input_tokens}) exceeds "
+                f"available_input_tokens ({self.available_input_tokens})"
+            )
