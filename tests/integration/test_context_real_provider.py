@@ -135,7 +135,7 @@ def test_real_openai_compatible_provider_accepts_context_payload():
     response = client.invoke(
         payload,
         temperature=0,
-        max_tokens=32,
+        max_tokens=MAX_OUTPUT_TOKENS,
     )
     # raw_response = client._client.chat.completions.create(
     #     model=client.model,
