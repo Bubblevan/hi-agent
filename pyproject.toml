@@ -25,6 +25,9 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+markers = [
+    "real_llm: invokes a real external LLM provider and is disabled by default",
+]
 
 [tool.uv]
 default-groups = ["dev"]
