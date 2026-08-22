@@ -42,7 +42,7 @@
 |---|---|---|
 | soft_limit | 开始考虑清理的阈值 | 大于 0，不能超过 hard_limit |
 | hard_limit | 绝对预算上限 | 必须大于 0 |
-| output_reserve | 为模型输出预留的 token | 大于等于 0，不能超过 hard_limit |
+| output_reserve | 为模型输出预留的 token | output_reserve 必须大于等于 0，且严格小于 hard_limit。 |
 
 ## 6. required 溢出策略
 
