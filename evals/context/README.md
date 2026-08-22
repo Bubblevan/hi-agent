@@ -1,5 +1,29 @@
 # Context Bench v1
 
+## Live LLM evaluation
+
+`tests/fixtures/context_llm_eval_cases.jsonl` is a deliberately small live
+benchmark with three formatter-compatible cases: database migration, pytest
+debugging, and checkpoint recovery. The runner repeats every case, records
+provider metadata, scores selection and answer quality, and writes a JSON
+report:
+
+```powershell
+uv run python -m evals.context.runner `
+  --fixture tests/fixtures/context_llm_eval_cases.jsonl `
+  --repeats 3 `
+  --output artifacts/context-eval-v1.json
+```
+
+The report's `metrics` object contains `exact_match`,
+`must_select_recall`, `distractor_exclusion`, `required_coverage`,
+`forbidden_leakage`, `truncation`, and `provider_error`. It also records the
+model, finish reason, latency, prompt/completion tokens, reasoning tokens,
+cached tokens, and every individual attempt. A learning milestone is green
+when the offline contract passes and the live report is repeatable with full
+selection/answer coverage, zero forbidden leakage, zero truncation, and zero
+provider errors.
+
 `tests/fixtures/context_cases.jsonl` 是面向上下文工程（Context Engineering）工作的**首个确定性基准测试**。
 
 它有意与 RAG 基准区分开。RAG 测试用例考察的是证据能否被检索和引用；而上下文测试用例考察的是：在经历选择、清理、检查点（checkpoint）或压缩（compaction）之后，智能体（Agent）能否保留继续执行任务所必需的信息。

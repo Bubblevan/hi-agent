@@ -1,0 +1,300 @@
+{
+  "schema_version": "context-eval-v1",
+  "generated_at": "2026-08-22T16:59:44.930606+00:00",
+  "fixture": "tests\\fixtures\\context_llm_eval_cases.jsonl",
+  "case_count": 3,
+  "repeats": 3,
+  "total_attempts": 9,
+  "successful_attempts": 9,
+  "models": [
+    "deepseek-v4-flash"
+  ],
+  "metrics": {
+    "exact_match": 1.0,
+    "must_select_recall": 1.0,
+    "distractor_exclusion": 1.0,
+    "required_coverage": 1.0,
+    "forbidden_leakage": 0.0,
+    "truncation": 0.0,
+    "provider_error": 0.0
+  },
+  "operational": {
+    "average_latency_ms": 1585.585444,
+    "average_prompt_tokens": 148.333333,
+    "average_completion_tokens": 138.444444,
+    "average_reasoning_tokens": 94.333333,
+    "average_cached_tokens": 85.333333
+  },
+  "results": [
+    {
+      "case_id": "ctx-llm-database-migration",
+      "repeat": 1,
+      "selected_item_ids": [
+        "system",
+        "task",
+        "migration-guide"
+      ],
+      "dropped_item_ids": [
+        "stale-migration"
+      ],
+      "answer": "Safe database migration first performs an **expand** phase to add the new schema in a backward-compatible way, then runs a **backfill** phase to populate data into that new structure before switching over.",
+      "scores": {
+        "exact_match": true,
+        "must_select_recall": 1.0,
+        "distractor_exclusion": 1.0,
+        "required_coverage": 1.0,
+        "forbidden_leakage": false,
+        "truncation": false
+      },
+      "provider_error": false,
+      "error": null,
+      "model": "deepseek-v4-flash",
+      "finish_reason": "stop",
+      "prompt_tokens": 154,
+      "completion_tokens": 149,
+      "reasoning_tokens": 107,
+      "cached_tokens": 0,
+      "latency_ms": 1915.494
+    },
+    {
+      "case_id": "ctx-llm-pytest-debugging",
+      "repeat": 1,
+      "selected_item_ids": [
+        "system",
+        "task",
+        "pytest-guide"
+      ],
+      "dropped_item_ids": [
+        "stale-pytest"
+      ],
+      "answer": "Use `caplog` to inspect captured log records at different levels, verifying what your code logged during the test. Use `monkeypatch` to replace environment variables, functions, or external calls so the failing test runs under controlled conditions, isolating the root cause from environment-dependent behavior.",
+      "scores": {
+        "exact_match": true,
+        "must_select_recall": 1.0,
+        "distractor_exclusion": 1.0,
+        "required_coverage": 1.0,
+        "forbidden_leakage": false,
+        "truncation": false
+      },
+      "provider_error": false,
+      "error": null,
+      "model": "deepseek-v4-flash",
+      "finish_reason": "stop",
+      "prompt_tokens": 148,
+      "completion_tokens": 120,
+      "reasoning_tokens": 61,
+      "cached_tokens": 0,
+      "latency_ms": 1491.829
+    },
+    {
+      "case_id": "ctx-llm-checkpoint-recovery",
+      "repeat": 1,
+      "selected_item_ids": [
+        "system",
+        "task",
+        "checkpoint-guide"
+      ],
+      "dropped_item_ids": [
+        "stale-checkpoint"
+      ],
+      "answer": "Recovery records the checkpoint_id, loads the matching state, and starts a deterministic replay from that point.",
+      "scores": {
+        "exact_match": true,
+        "must_select_recall": 1.0,
+        "distractor_exclusion": 1.0,
+        "required_coverage": 1.0,
+        "forbidden_leakage": false,
+        "truncation": false
+      },
+      "provider_error": false,
+      "error": null,
+      "model": "deepseek-v4-flash",
+      "finish_reason": "stop",
+      "prompt_tokens": 143,
+      "completion_tokens": 94,
+      "reasoning_tokens": 71,
+      "cached_tokens": 0,
+      "latency_ms": 1036.042
+    },
+    {
+      "case_id": "ctx-llm-database-migration",
+      "repeat": 2,
+      "selected_item_ids": [
+        "system",
+        "task",
+        "migration-guide"
+      ],
+      "dropped_item_ids": [
+        "stale-migration"
+      ],
+      "answer": "A safe database migration uses the expand phase to add a compatible schema, then the backfill phase to populate data before the final switch.",
+      "scores": {
+        "exact_match": true,
+        "must_select_recall": 1.0,
+        "distractor_exclusion": 1.0,
+        "required_coverage": 1.0,
+        "forbidden_leakage": false,
+        "truncation": false
+      },
+      "provider_error": false,
+      "error": null,
+      "model": "deepseek-v4-flash",
+      "finish_reason": "stop",
+      "prompt_tokens": 154,
+      "completion_tokens": 159,
+      "reasoning_tokens": 131,
+      "cached_tokens": 128,
+      "latency_ms": 1575.36
+    },
+    {
+      "case_id": "ctx-llm-pytest-debugging",
+      "repeat": 2,
+      "selected_item_ids": [
+        "system",
+        "task",
+        "pytest-guide"
+      ],
+      "dropped_item_ids": [
+        "stale-pytest"
+      ],
+      "answer": "Use `caplog` to inspect logs emitted during the failing pytest case: set the capture level with `caplog.set_level(...)`, then check `caplog.text` or iterate `caplog.records` to see what was logged before the failure.\n\nUse `monkeypatch` to isolate environment-dependent behavior by replacing environment variables, attributes, or functions with deterministic values, so the test fails only when the code being tested is actually wrong.",
+      "scores": {
+        "exact_match": true,
+        "must_select_recall": 1.0,
+        "distractor_exclusion": 1.0,
+        "required_coverage": 1.0,
+        "forbidden_leakage": false,
+        "truncation": false
+      },
+      "provider_error": false,
+      "error": null,
+      "model": "deepseek-v4-flash",
+      "finish_reason": "stop",
+      "prompt_tokens": 148,
+      "completion_tokens": 216,
+      "reasoning_tokens": 121,
+      "cached_tokens": 128,
+      "latency_ms": 2428.44
+    },
+    {
+      "case_id": "ctx-llm-checkpoint-recovery",
+      "repeat": 2,
+      "selected_item_ids": [
+        "system",
+        "task",
+        "checkpoint-guide"
+      ],
+      "dropped_item_ids": [
+        "stale-checkpoint"
+      ],
+      "answer": "Recovery records the checkpoint_id, loads the matching state, and starts a deterministic replay from that point.",
+      "scores": {
+        "exact_match": true,
+        "must_select_recall": 1.0,
+        "distractor_exclusion": 1.0,
+        "required_coverage": 1.0,
+        "forbidden_leakage": false,
+        "truncation": false
+      },
+      "provider_error": false,
+      "error": null,
+      "model": "deepseek-v4-flash",
+      "finish_reason": "stop",
+      "prompt_tokens": 143,
+      "completion_tokens": 85,
+      "reasoning_tokens": 62,
+      "cached_tokens": 128,
+      "latency_ms": 1016.739
+    },
+    {
+      "case_id": "ctx-llm-database-migration",
+      "repeat": 3,
+      "selected_item_ids": [
+        "system",
+        "task",
+        "migration-guide"
+      ],
+      "dropped_item_ids": [
+        "stale-migration"
+      ],
+      "answer": "A safe database migration uses the **expand** phase to add a compatible schema, then the **backfill** phase to populate data before the final switch.",
+      "scores": {
+        "exact_match": true,
+        "must_select_recall": 1.0,
+        "distractor_exclusion": 1.0,
+        "required_coverage": 1.0,
+        "forbidden_leakage": false,
+        "truncation": false
+      },
+      "provider_error": false,
+      "error": null,
+      "model": "deepseek-v4-flash",
+      "finish_reason": "stop",
+      "prompt_tokens": 154,
+      "completion_tokens": 57,
+      "reasoning_tokens": 25,
+      "cached_tokens": 128,
+      "latency_ms": 826.952
+    },
+    {
+      "case_id": "ctx-llm-pytest-debugging",
+      "repeat": 3,
+      "selected_item_ids": [
+        "system",
+        "task",
+        "pytest-guide"
+      ],
+      "dropped_item_ids": [
+        "stale-pytest"
+      ],
+      "answer": "Use the `caplog` fixture to capture and inspect log output during the test, verifying whether expected log messages appear or identifying unexpected warnings/errors. Use `monkeypatch` to temporarily replace functions, attributes, or environment variables, isolating the test from environment-dependent behavior and confirming the failure is due to the code under test rather than external factors.",
+      "scores": {
+        "exact_match": true,
+        "must_select_recall": 1.0,
+        "distractor_exclusion": 1.0,
+        "required_coverage": 1.0,
+        "forbidden_leakage": false,
+        "truncation": false
+      },
+      "provider_error": false,
+      "error": null,
+      "model": "deepseek-v4-flash",
+      "finish_reason": "stop",
+      "prompt_tokens": 148,
+      "completion_tokens": 237,
+      "reasoning_tokens": 165,
+      "cached_tokens": 128,
+      "latency_ms": 2446.438
+    },
+    {
+      "case_id": "ctx-llm-checkpoint-recovery",
+      "repeat": 3,
+      "selected_item_ids": [
+        "system",
+        "task",
+        "checkpoint-guide"
+      ],
+      "dropped_item_ids": [
+        "stale-checkpoint"
+      ],
+      "answer": "Recovery records the checkpoint_id, loads the matching state, and starts a deterministic replay from that point.",
+      "scores": {
+        "exact_match": true,
+        "must_select_recall": 1.0,
+        "distractor_exclusion": 1.0,
+        "required_coverage": 1.0,
+        "forbidden_leakage": false,
+        "truncation": false
+      },
+      "provider_error": false,
+      "error": null,
+      "model": "deepseek-v4-flash",
+      "finish_reason": "stop",
+      "prompt_tokens": 143,
+      "completion_tokens": 129,
+      "reasoning_tokens": 106,
+      "cached_tokens": 128,
+      "latency_ms": 1532.975
+    }
+  ]
+}

@@ -1,28 +1,27 @@
 import os
-from typing import List, Dict, Any, Optional, Iterator
+from typing import Any, Dict, Iterator, List, Optional
 
 from dotenv import find_dotenv, load_dotenv
 from openai import OpenAI
 
+from .llm_result import LLMResult
+
+
 class MyLLMClient:
-    """
-    支持Openai、Modelscope、本地Ollama/VLLM
-    """
+    """Small OpenAI-compatible client used by the learning examples."""
+
     def __init__(
-            self,
-            model: Optional[str] = None,
-            api_key: Optional[str] = None,
-            base_url: Optional[str] = None,
-            provider: Optional[str] = "auto",
+        self,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        provider: Optional[str] = "auto",
     ):
-        # 解析提供商
-        # Load the nearest project .env without overriding variables explicitly
-        # supplied by the shell or the caller.
+        # Load the nearest project .env without overriding explicit settings.
         load_dotenv(find_dotenv(), override=False)
 
         self.provider = self._detect_provider(provider, api_key, base_url)
 
-        # 根据提供商，智能获取凭证
         if self.provider == "openai":
             self.api_key = api_key or os.getenv("OPENAI_API_KEY")
             self.base_url = base_url or "https://api.openai.com/v1"
@@ -36,33 +35,34 @@ class MyLLMClient:
             self.base_url = base_url or "http://localhost:8000/v1"
             self.model = model or os.getenv("LLM_MODEL_ID") or "Qwen/Qwen1.5-0.5B-Chat"
         else:
-            # 通用模式：直接用传参或环境变量
             self.api_key = api_key or os.getenv("LLM_API_KEY")
             self.base_url = base_url or os.getenv("LLM_BASE_URL")
             self.model = model or os.getenv("LLM_MODEL_ID") or "gpt-3.5-turbo"
 
-        # 初始化 OpenAI 客户端
         if not self.api_key:
             raise ValueError(f"未找到{self.provider}的APIKEY！")
+
         self._client = OpenAI(
             api_key=self.api_key,
             base_url=self.base_url,
-            timeout=60
+            timeout=60,
         )
-        print(f"LLM引擎启动成功")
+        print("LLM引擎启动成功")
 
-    def _detect_provider(self, provider, api_key, base_url) -> str:
-        """我们自己的侦探逻辑，识别服务商"""
+    def _detect_provider(
+        self,
+        provider: Optional[str],
+        api_key: Optional[str],
+        base_url: Optional[str],
+    ) -> str:
         if provider and provider != "auto":
             return provider
-            
-        # 1. 检查特定环境变量（最高优先级）
+
         if os.getenv("MODELSCOPE_API_KEY"):
             return "modelscope"
         if os.getenv("OPENAI_API_KEY"):
             return "openai"
-            
-        # 2. 检查 URL 特征
+
         actual_url = base_url or os.getenv("LLM_BASE_URL") or ""
         if "api-inference.modelscope.cn" in actual_url:
             return "modelscope"
@@ -73,52 +73,84 @@ class MyLLMClient:
                 return "ollama"
             if "8000" in actual_url:
                 return "vllm"
-                
-        # 3. 默认
+
         return "generic"
-    
+
+    def _request_kwargs(
+        self,
+        messages: List[Dict[str, str]],
+        stream: bool,
+        kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
+        request_kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": kwargs.get("temperature", 0.7),
+            "max_tokens": kwargs.get("max_tokens"),
+            "stream": stream,
+        }
+        if kwargs.get("extra_body") is not None:
+            request_kwargs["extra_body"] = kwargs["extra_body"]
+        return request_kwargs
+
     def invoke(self, messages: List[Dict[str, str]], **kwargs) -> str:
-        """
-        同步调用大模型（非流式）
-        messages = [
-            {"role": "system", "content": "你是一个专业助手"},
-            {"role": "user", "content": "你好"}
-        ]
-        """
+        """Return only answer text for compatibility with existing agents."""
+
+        return self.invoke_with_metadata(messages, **kwargs).content
+
+    def invoke_with_metadata(
+        self,
+        messages: List[Dict[str, str]],
+        **kwargs,
+    ) -> LLMResult:
+        """Invoke the provider and preserve metadata needed by evaluations."""
+
         try:
-            request_kwargs = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": kwargs.get('temperature', 0.7),
-                "max_tokens": kwargs.get('max_tokens'),
-                "stream": False,
-            }
-            if kwargs.get("extra_body") is not None:
-                request_kwargs["extra_body"] = kwargs["extra_body"]
             response = self._client.chat.completions.create(
-                **request_kwargs,
+                **self._request_kwargs(messages, stream=False, kwargs=kwargs),
             )
-            # print(response)
-            # 默认只生成一条，所以取第一条回复的文本内容
-            return response.choices[0].message.content
-        except Exception as e:
-            return f"LLM调用失败: {str(e)}"
-        
-    def stream_invoke(self, messages: List[Dict[str, str]], **kwargs) -> Iterator[str]:
+            choice = response.choices[0]
+            message = choice.message
+            usage = getattr(response, "usage", None)
+            completion_details = getattr(
+                usage,
+                "completion_tokens_details",
+                None,
+            )
+            prompt_details = getattr(usage, "prompt_tokens_details", None)
+
+            return LLMResult(
+                content=getattr(message, "content", None) or "",
+                model=getattr(response, "model", None) or self.model,
+                finish_reason=getattr(choice, "finish_reason", None),
+                prompt_tokens=getattr(usage, "prompt_tokens", None),
+                completion_tokens=getattr(usage, "completion_tokens", None),
+                reasoning_tokens=getattr(
+                    completion_details,
+                    "reasoning_tokens",
+                    None,
+                ),
+                cached_tokens=getattr(prompt_details, "cached_tokens", None),
+            )
+        except Exception as error:
+            return LLMResult(
+                content=f"LLM调用失败: {error}",
+                model=self.model,
+                error=str(error),
+            )
+
+    def stream_invoke(
+        self,
+        messages: List[Dict[str, str]],
+        **kwargs,
+    ) -> Iterator[str]:
         try:
-            request_kwargs = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": kwargs.get('temperature', 0.7),
-                "max_tokens": kwargs.get('max_tokens'),
-                "stream": True,
-            }
-            if kwargs.get("extra_body") is not None:
-                request_kwargs["extra_body"] = kwargs["extra_body"]
-            stream = self._client.chat.completions.create(**request_kwargs)
+            stream = self._client.chat.completions.create(
+                **self._request_kwargs(messages, stream=True, kwargs=kwargs),
+            )
             for chunk in stream:
-                # delta 表示当前分片的增量内容，非空则通过yield返回
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
-        except Exception as e:
-            yield f"流式调用失败: {str(e)}"
+                content = getattr(chunk.choices[0].delta, "content", None)
+                if content:
+                    yield content
+        except Exception as error:
+            yield f"流式调用失败: {error}"
