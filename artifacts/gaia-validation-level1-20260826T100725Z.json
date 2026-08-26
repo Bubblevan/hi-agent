@@ -1,0 +1,100 @@
+{
+  "benchmark": "GAIA 2023",
+  "total_samples": 5,
+  "scorable_samples": 5,
+  "correct_samples": 2,
+  "accuracy": 0.4,
+  "by_level": {
+    "1": {
+      "correct": 2,
+      "total": 5,
+      "accuracy": 0.4
+    }
+  },
+  "cases": [
+    {
+      "task_id": "e1fc63a2-da7a-432f-be78-7c4a95598703",
+      "index": 1,
+      "level": 1,
+      "file_name": null,
+      "predicted": "17000",
+      "expected": "17",
+      "normalized_predicted": "17000",
+      "normalized_expected": "17",
+      "valid": false,
+      "scorable": true,
+      "error": null,
+      "response": "FINAL ANSWER: 17000",
+      "latency_ms": 19068.16
+    },
+    {
+      "task_id": "8e867cd7-cff9-4e6c-867a-ff5ddc2550be",
+      "index": 2,
+      "level": 1,
+      "file_name": null,
+      "predicted": "</｜｜DSML｜｜tool_calls>",
+      "expected": "3",
+      "normalized_predicted": "</｜｜dsml｜｜tool_calls>",
+      "normalized_expected": "3",
+      "valid": false,
+      "scorable": true,
+      "error": null,
+      "response": "<｜｜DSML｜｜tool_calls>\n<｜｜DSML｜｜invoke name=\"search\">\n<｜｜DSML｜｜parameter name=\"query\" string=\"true\">Mercedes Sosa Wikipedia \"1999\" \"2000\" \"2002\" \"2005\" \"2009\" studio albums table discography \"Cantora\" \"Corazón Libre\"</｜｜DSML｜｜parameter>\n</｜｜DSML｜｜invoke>\n<｜｜DSML｜｜invoke name=\"search\">\n<｜｜DSML｜｜parameter name=\"query\" string=\"true\">site:en.wikipedia.org \"Mercedes Sosa\" \"Studio albums\" \"Cantora 1\" \"Cantora 2\" \"Corazón libre\" \"Acústico\"</｜｜DSML｜｜parameter>\n</｜｜DSML｜｜invoke>\n</｜｜DSML｜｜tool_calls>",
+      "latency_ms": 79308.77
+    },
+    {
+      "task_id": "ec09fa32-d03f-4bf8-84b0-1f16922c3ae4",
+      "index": 3,
+      "level": 1,
+      "file_name": null,
+      "predicted": "（无内容）",
+      "expected": "3",
+      "normalized_predicted": "（无内容）",
+      "normalized_expected": "3",
+      "valid": false,
+      "scorable": true,
+      "error": null,
+      "response": "（无内容）",
+      "latency_ms": 33927.42
+    },
+    {
+      "task_id": "5d0080cb-90d7-4712-bc33-848150e917d3",
+      "index": 4,
+      "level": 1,
+      "file_name": null,
+      "predicted": "0.1777",
+      "expected": "0.1777",
+      "normalized_predicted": "0.1777",
+      "normalized_expected": "0.1777",
+      "valid": true,
+      "scorable": true,
+      "error": null,
+      "response": "FINAL ANSWER: 0.1777",
+      "latency_ms": 12766.49
+    },
+    {
+      "task_id": "a1e91b78-d3d8-4675-bb8d-62741b4b68a6",
+      "index": 5,
+      "level": 1,
+      "file_name": null,
+      "predicted": "3",
+      "expected": "3",
+      "normalized_predicted": "3",
+      "normalized_expected": "3",
+      "valid": true,
+      "scorable": true,
+      "error": null,
+      "response": "FINAL ANSWER: 3",
+      "latency_ms": 10933.41
+    }
+  ],
+  "model": "deepseek-v4-flash",
+  "model_label": "hi-agent-baseline",
+  "split": "validation",
+  "level": 1,
+  "temperature": 0.0,
+  "max_tokens": 4096,
+  "data_root": "D:\\MyLab\\hi-agent\\evals\\llm_evals\\gaia",
+  "generated_at": "2026-08-26T10:07:25.514440+00:00",
+  "output_path": "D:\\MyLab\\hi-agent\\artifacts\\gaia-validation-level1-20260826T100725Z.jsonl"
+}

@@ -1,0 +1,234 @@
+{
+  "benchmark": "BFCL v4 parallel",
+  "category": "parallel",
+  "model": "deepseek-v4-flash",
+  "model_label": "hi-agent-baseline",
+  "scoring_profile": "gpt-4o-2024-11-20-FC",
+  "temperature": 0.0,
+  "max_tokens": 512,
+  "total_samples": 5,
+  "correct_samples": 4,
+  "accuracy": 0.8,
+  "result_path": "D:\\MyLab\\hi-agent\\evals\\llm_evals\\temp_gorilla\\berkeley-function-call-leaderboard\\result\\hi-agent-baseline\\non_live\\BFCL_v4_parallel_result.json",
+  "parallel_tool_calls": true,
+  "cases": [
+    {
+      "id": "parallel_0",
+      "index": 1,
+      "valid": true,
+      "prediction": [
+        {
+          "spotify_play": {
+            "artist": "Taylor Swift",
+            "duration": 20
+          }
+        },
+        {
+          "spotify_play": {
+            "artist": "Maroon 5",
+            "duration": 15
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": []
+      },
+      "content": "I'll play songs from both artists for you right away.",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 432,
+        "completion_tokens": 160,
+        "total_tokens": 592
+      },
+      "latency_ms": 3472.84
+    },
+    {
+      "id": "parallel_1",
+      "index": 2,
+      "valid": true,
+      "prediction": [
+        {
+          "calculate_em_force": {
+            "b_field": 5,
+            "area": 2,
+            "d_time": 4
+          }
+        },
+        {
+          "calculate_em_force": {
+            "b_field": 5,
+            "area": 2,
+            "d_time": 10
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": []
+      },
+      "content": "I'll calculate the induced electromagnetic force (EMF) for both scenarios using Faraday's Law. These are independent calculations, so I'll run them in parallel.",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 497,
+        "completion_tokens": 273,
+        "total_tokens": 770
+      },
+      "latency_ms": 1471.04
+    },
+    {
+      "id": "parallel_2",
+      "index": 3,
+      "valid": true,
+      "prediction": [
+        {
+          "calculate_resistance": {
+            "length": 5,
+            "area": 0.01,
+            "resistivity": "copper"
+          }
+        },
+        {
+          "calculate_resistance": {
+            "length": 5,
+            "area": 0.01,
+            "resistivity": "aluminum"
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": []
+      },
+      "content": "I'll calculate the resistance for both copper and aluminum wires. These are independent calculations, so I'll run them in parallel.",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 470,
+        "completion_tokens": 217,
+        "total_tokens": 687
+      },
+      "latency_ms": 1376.5
+    },
+    {
+      "id": "parallel_3",
+      "index": 4,
+      "valid": false,
+      "prediction": [
+        {
+          "protein_info_get_sequence_and_3D": {
+            "protein_name": "human HbA1c",
+            "model_3d": true
+          }
+        },
+        {
+          "protein_info_get_sequence_and_3D": {
+            "protein_name": "normal human hemoglobin",
+            "model_3d": true
+          }
+        },
+        {
+          "protein_info_get_sequence_and_3D": {
+            "protein_name": "rat hemoglobin",
+            "model_3d": true
+          }
+        }
+      ],
+      "score": {
+        "valid": false,
+        "error": [
+          "Could not find a matching function among index [1, 2] of model output for index 1 of possible answers.",
+          {
+            "Model Result Index 1": {
+              "sub_error": [
+                "Invalid value for parameter 'protein_name': 'normal human hemoglobin'. Expected one of ['normal hemoglobin']. Case insensitive."
+              ],
+              "sub_error_type": "value_error:string",
+              "model_output_item": {
+                "protein_info_get_sequence_and_3D": {
+                  "protein_name": "normal human hemoglobin",
+                  "model_3d": true
+                }
+              },
+              "possible_answer_item": {
+                "protein_info.get_sequence_and_3D": {
+                  "protein_name": [
+                    "normal hemoglobin"
+                  ],
+                  "model_3d": [
+                    true,
+                    ""
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "Model Result Index 2": {
+              "sub_error": [
+                "Invalid value for parameter 'protein_name': 'rat hemoglobin'. Expected one of ['normal hemoglobin']. Case insensitive."
+              ],
+              "sub_error_type": "value_error:string",
+              "model_output_item": {
+                "protein_info_get_sequence_and_3D": {
+                  "protein_name": "rat hemoglobin",
+                  "model_3d": true
+                }
+              },
+              "possible_answer_item": {
+                "protein_info.get_sequence_and_3D": {
+                  "protein_name": [
+                    "normal hemoglobin"
+                  ],
+                  "model_3d": [
+                    true,
+                    ""
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "error_type": "parallel_function_checker_no_order:cannot_find_match"
+      },
+      "content": "I'll retrieve the sequences and 3D models for these three proteins.",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 431,
+        "completion_tokens": 254,
+        "total_tokens": 685
+      },
+      "latency_ms": 1708.53
+    },
+    {
+      "id": "parallel_4",
+      "index": 5,
+      "valid": true,
+      "prediction": [
+        {
+          "calculate_bmi": {
+            "height": 6,
+            "weight": 80
+          }
+        },
+        {
+          "calculate_bmi": {
+            "height": 5.6,
+            "weight": 60
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": []
+      },
+      "content": "I'll calculate the BMI for both individuals.",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 433,
+        "completion_tokens": 188,
+        "total_tokens": 621
+      },
+      "latency_ms": 1639.82
+    }
+  ]
+}

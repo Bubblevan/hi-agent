@@ -1,0 +1,152 @@
+{
+  "benchmark": "BFCL v4 multiple",
+  "category": "multiple",
+  "model": "deepseek-v4-flash",
+  "model_label": "hi-agent-baseline",
+  "scoring_profile": "gpt-4o-2024-11-20-FC",
+  "temperature": 0.0,
+  "max_tokens": 512,
+  "total_samples": 5,
+  "correct_samples": 5,
+  "accuracy": 1.0,
+  "result_path": "D:\\MyLab\\hi-agent\\evals\\llm_evals\\temp_gorilla\\berkeley-function-call-leaderboard\\result\\hi-agent-baseline\\non_live\\BFCL_v4_multiple_result.json",
+  "parallel_tool_calls": false,
+  "cases": [
+    {
+      "id": "multiple_0",
+      "index": 1,
+      "valid": true,
+      "prediction": [
+        {
+          "triangle_properties_get": {
+            "side1": 5,
+            "side2": 4,
+            "side3": 3
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": [],
+        "error_type": "simple_function_checker:unclear"
+      },
+      "content": "Yes, absolutely! If you know the three sides of a triangle, I can retrieve its dimensions and properties. Let me calculate that for you.",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 748,
+        "completion_tokens": 131,
+        "total_tokens": 879
+      },
+      "latency_ms": 3578.78
+    },
+    {
+      "id": "multiple_1",
+      "index": 2,
+      "valid": true,
+      "prediction": [
+        {
+          "math_triangle_area_heron": {
+            "side1": 3,
+            "side2": 4,
+            "side3": 5
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": [],
+        "error_type": "simple_function_checker:unclear"
+      },
+      "content": "I'll calculate the area of the triangle with sides 3, 4, and 5 using Heron's formula.",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 626,
+        "completion_tokens": 145,
+        "total_tokens": 771
+      },
+      "latency_ms": 1392.31
+    },
+    {
+      "id": "multiple_2",
+      "index": 3,
+      "valid": true,
+      "prediction": [
+        {
+          "country_info_capital": {
+            "country": "Brazil"
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": []
+      },
+      "content": "",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 493,
+        "completion_tokens": 67,
+        "total_tokens": 560
+      },
+      "latency_ms": 789.65
+    },
+    {
+      "id": "multiple_3",
+      "index": 4,
+      "valid": true,
+      "prediction": [
+        {
+          "EuclideanDistance_calculate": {
+            "pointA": [
+              3,
+              4
+            ],
+            "pointB": [
+              1,
+              2
+            ]
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": []
+      },
+      "content": "",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 600,
+        "completion_tokens": 103,
+        "total_tokens": 703
+      },
+      "latency_ms": 745.15
+    },
+    {
+      "id": "multiple_4",
+      "index": 5,
+      "valid": true,
+      "prediction": [
+        {
+          "kinematics_calculate_displacement": {
+            "initial_speed": 20,
+            "acceleration": 10,
+            "time": 5
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": [],
+        "error_type": "simple_function_checker:unclear"
+      },
+      "content": "I'll calculate the displacement using the kinematics formula.",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 701,
+        "completion_tokens": 120,
+        "total_tokens": 821
+      },
+      "latency_ms": 1059.98
+    }
+  ]
+}

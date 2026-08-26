@@ -1,36 +1,39 @@
 ---
 schema: bubblevan/v1
-id: hi-agent-bfcl-simple-python-eval
+id: hi-agent-bfcl-v4-single-turn-eval
 content_kind: learning-note
-title: "Hi-Agent BFCL simple_python 评测复盘"
-date: 2026-08-25
-updated: 2026-08-25
+title: "Hi-Agent BFCL v4 单轮函数调用评测复盘"
+date: 2026-08-26
+updated: 2026-08-26
 status: draft
 visibility: public
-summary: "从 BFCL 数据安装、原始 tool call 捕获、官方 AST checker 到可复现报告，完成 Hi-Agent 的第一个函数调用评测闭环。"
+summary: "从 simple_python 扩展到 multiple、parallel、irrelevance：把函数选择、并行调用和工具拒绝统一到一条可解释的评测链路中。"
 topics: [Agent, BFCL, Function Calling, Evaluation, Python]
 projects: [hi-agent]
 aliases: []
 authors: [bubblevan]
 ---
 
-这次不是先实现一个更复杂的 Agent，而是先回答一个更基础的问题：
+这次扩展的目标不是简单地把一个类别名改成四个类别名，而是验证 Agent 在四种不同决策上的行为：
 
-> Hi-Agent 能不能在标准函数调用数据上，稳定地产生正确的函数名和参数？
+```text
+simple_python  →  是否能正确调用一个函数
+multiple       →  是否能从多个候选函数中选对函数
+parallel       →  是否能在同一轮发出多个独立调用
+irrelevance    →  是否能判断这次不应该调用工具
+```
 
-我选择 BFCL v4 的 `simple_python`，先把评测链路缩小到单轮、单函数调用，再决定是否扩展到 `multiple`、`parallel` 和 `irrelevance`。
+我把这四类先限制在 BFCL v4 的单轮数据上，暂时不混入 multi-turn、live execution 或真实工具副作用。
 
-## 1. 先把环境边界弄清楚
+## 1. 环境先成为评测契约的一部分
 
-BFCL 官方仓库被放在：
+BFCL 仓库位于：
 
 ```text
 evals/llm_evals/temp_gorilla/berkeley-function-call-leaderboard/
 ```
 
-最初直接使用 Conda `base` 环境安装时，`pip` 使用了 Python 3.13，并尝试从源码编译 `numpy==1.26.4`。Windows 环境没有可用的 C/C++ 编译器，于是安装失败。
-
-后来使用 D 盘上的独立 BFCL `.venv`，验证结果为：
+评测使用仓库内独立的 Python 3.10 `.venv`，而不是 Conda `base`。最终验证过：
 
 ```text
 Python: .../berkeley-function-call-leaderboard/.venv/Scripts/python.exe
@@ -38,27 +41,71 @@ NumPy: 1.26.4
 bfcl_eval: .../berkeley-function-call-leaderboard/bfcl_eval/__init__.py
 ```
 
-这一步的经验是：评测依赖本身也是系统的一部分。不能只记录“安装成功”，还要记录实际解释器、关键依赖版本和包的来源路径。
+BFCL 的 AST checker 还会间接导入 `qwen_agent`，因此补充了独立环境中的 `soundfile`。这个依赖没有安装到 `hi-agent` 的 base 环境。
 
-## 2. BFCL 数据契约不是一个简单字符串
+这次保留下来的经验和 Context Compiler V1 一样：环境、版本和输入边界都属于系统行为，不能把它们当作运行命令之外的细节。
 
-`BFCL_v4_simple_python.json` 中的一条样本大致包含：
+## 2. 四类数据的最小契约
 
-```text
-id
-question: 按 turn 包裹的对话消息列表
-function: 当前样本可用的函数描述
-```
-
-标准答案不在同一个文件的 `ground_truth` 字段里，而是在：
+四类数据都使用：
 
 ```text
-bfcl_eval/data/possible_answer/BFCL_v4_simple_python.json
+BFCL_v4_<category>.json
 ```
 
-因此 Runner 必须使用 `id` 对齐 prompt 和 possible answer，并检查两边的数量一致。`simple_python` 当前只有一轮，所以 Provider payload 使用 `question[0]`，而不是把外层 turn 列表直接传给 API。这里不能把文档里的简化示例直接当成当前 BFCL v4 的实际数据结构。
+其中 `question` 是按 turn 包裹的消息列表，单轮 Provider 请求使用 `question[0]`。函数描述来自当前样本的 `function` 字段，不能使用一个固定的全局工具表。
 
-## 3. 为什么没有直接调用 `MyFunctionCallAgent.run`
+有 ground truth 的类别还需要读取：
+
+```text
+bfcl_eval/data/possible_answer/BFCL_v4_<category>.json
+```
+
+`irrelevance` 是例外：它没有对应的 possible answer 文件，因为官方语义不是比较参数，而是要求模型不要产生函数调用。
+
+## 3. 从 simple_python 到复杂类别
+
+### 3.1 simple_python：一个函数调用
+
+模型需要返回一个函数名和一组参数。报告中保存的结果类似：
+
+```json
+[{"calculate_triangle_area": {"base": 10, "height": 5}}]
+```
+
+### 3.2 multiple：候选函数选择
+
+`multiple` 并不等同于“必须调用多个函数”。当前 BFCL checker 的语义是：给出多个候选函数，模型需要选出正确的那个函数并填入参数。
+
+因此这里主要测量：
+
+- 函数名选择；
+- 必需参数提取；
+- 不要因为候选函数很多而同时调用无关函数。
+
+### 3.3 parallel：同一轮多个调用
+
+`parallel` 的样本可能要求同一个函数被调用多次，但参数不同。例如分别播放 Taylor Swift 和 Maroon 5 的歌曲。
+
+Runner 在这一类请求中显式发送：
+
+```text
+parallel_tool_calls=True
+```
+
+并保存响应中的全部 `tool_calls`，而不是只读取第一个调用。官方 checker 会对 parallel 结果进行无序匹配，因此调用顺序本身不应成为错误来源。
+
+### 3.4 irrelevance：判断不应调用工具
+
+`irrelevance` 的函数描述与用户问题无关。正确行为不是“调用一个看起来最接近的函数”，而是返回空调用列表：
+
+```json
+[]
+```
+
+这使得评测指标从“调用得是否准确”扩展为“是否知道什么时候不要调用”。
+
+## 4. 为什么没有直接调用 `MyFunctionCallAgent.run`
 
 当前 `MyFunctionCallAgent` 的生产路径是：
 
@@ -70,112 +117,136 @@ bfcl_eval/data/possible_answer/BFCL_v4_simple_python.json
   → 返回最终自然语言
 ```
 
-但 BFCL simple_python 需要评估的是：
+而 BFCL 单轮评测要观察的是第一次响应中的原始函数调用。如果直接调用 `run()`，工具执行和最终回答会把函数选择证据隐藏起来。
 
-```text
-模型响应
-  → 函数名
-  → 参数 JSON
-```
+因此 Runner 复用了 `MyLLMClient` 的 OpenAI-compatible client，但在第一次响应处截取 `message.tool_calls`，暂时不执行任何 BFCL 工具。这是评测边界，不是生产 Agent 的最终执行实现。
 
-如果直接调用 `run()`，原始 `tool_calls` 已经被隐藏，最后得到的自然语言也不能可靠地反推出模型最初选择了什么函数。因此本次 Runner 直接复用了 `MyLLMClient` 的 OpenAI-compatible client，但在第一次模型响应处截取 `message.tool_calls`。
+## 5. Provider schema 与 BFCL schema 的转换
 
-这不是绕过 Agent，而是先把“函数调用选择能力”与“工具执行循环”拆开测量。否则工具执行成功可能掩盖函数名或参数错误。
-
-## 4. Provider schema 与 BFCL schema 之间还有一层转换
-
-BFCL 的函数描述使用类似：
+BFCL 使用的参数类型可能是：
 
 ```json
 {"type": "dict"}
 ```
 
-而 OpenAI-compatible tools 通常期待 JSON Schema 的：
+Provider tools 通常需要：
 
 ```json
 {"type": "object"}
 ```
 
-此外，BFCL 中可能出现 `math.factorial` 这样的函数名，而很多 Provider 不允许函数名包含点号。因此 Runner 在发送给 Provider 前把它变成 `math_factorial`，评分时使用 BFCL 的 FC profile 处理同样的名称约定。
+此外，`math.factorial`、`spotify.play` 等函数名包含点号，而 OpenAI-compatible API 往往要求函数名使用安全字符。因此发送前转换为 `math_factorial`、`spotify_play`，评分时交给 BFCL 的 FC profile 还原同一命名约定。
 
-这说明数据集格式、Provider payload 格式和评分器输入格式不是同一个接口，应该把转换写成显式边界，而不是散落在请求代码里。
+这层转换被集中在 Runner 中，避免 Provider payload、BFCL prompt 和评分输入互相污染。
 
-## 5. Runner 的职责
+## 6. Runner 的职责
 
-`evals/llm_evals/bfcl_simple_python.py` 当前做四件事：
-
-1. 读取 BFCL prompt 和 possible answer；
-2. 为每个样本构造当前样本的 tools；
-3. 保存原始 tool call 为 BFCL JSONL 结果；
-4. 调用 BFCL 官方 `ast_checker`，生成逐样本报告。
-
-默认只跑 5 条样本，`--samples 0` 才跑完整 `simple_python`。结果分成两份：
+`evals/llm_evals/bfcl_simple_python.py` 现在通过 `--category` 支持：
 
 ```text
-result/.../BFCL_v4_simple_python_result.json  # 官方结果格式
-artifacts/bfcl-simple-python.json              # 带延迟、usage、错误和预测的本地报告
+simple_python
+multiple
+parallel
+irrelevance
 ```
 
-这和 Context Eval 的经验一致：结果文件负责机器消费，报告 artifact 负责解释失败和复盘。
+它负责：
 
-## 6. 当前评测能证明什么
+1. 加载指定类别的数据；
+2. 对齐 prompt 和 ground truth；
+3. 构造当前样本的 tools；
+4. 发送原生 function calling 请求；
+5. 保存全部 raw tool calls；
+6. 使用 BFCL 官方 AST checker 或 irrelevance checker 评分；
+7. 输出逐样本报告、延迟、finish reason 和 token usage。
 
-如果 5 条样本全部通过，它只能说明：
+默认仍然只运行 5 条样本，`--samples 0` 才运行该类别全部样本。结果文件和报告按类别分开保存：
 
-- 当前模型能在这些样本上输出可解析的函数调用；
-- 函数名和必需参数满足 BFCL checker；
-- 当前 Provider payload 能被模型接受；
-- Runner 能把预测、评分和运行元数据保存下来。
+```text
+result/.../BFCL_v4_<category>_result.json
+artifacts/bfcl-<category>.json
+```
 
-它不能证明：
-
-- Agent 已经支持复杂多工具规划；
-- `multiple` 和 `parallel` 一定正确；
-- 工具执行结果和多轮状态管理正确；
-- 对全部 BFCL v4 或真实生产任务都可靠；
-- 这次准确率可以代表模型的普遍能力。
-
-因此当前结果应被称为 smoke/regression evaluation，而不是完整能力结论。
+这延续了 Context Compiler 复盘里的分层思路：机器消费的结果与人类解释用的报告不是同一个 artifact。
 
 ## 7. 运行方式
-
-在 `hi-agent` 根目录执行，使用 BFCL 的独立解释器：
 
 ```powershell
 $bfclRoot = "D:\MyLab\hi-agent\evals\llm_evals\temp_gorilla\berkeley-function-call-leaderboard"
 $env:BFCL_PROJECT_ROOT = $bfclRoot
 $env:PYTHONPATH = "D:\MyLab\hi-agent"
+$python = "$bfclRoot\.venv\Scripts\python.exe"
+$runner = "D:\MyLab\hi-agent\evals\llm_evals\bfcl_simple_python.py"
 
-& "$bfclRoot\.venv\Scripts\python.exe" `
-  "D:\MyLab\hi-agent\evals\llm_evals\bfcl_simple_python.py" `
-  --samples 5 `
-  --temperature 0 `
-  --max-tokens 256
+& $python $runner --category simple_python --samples 5 --temperature 0 --max-tokens 512
+& $python $runner --category multiple --samples 5 --temperature 0 --max-tokens 512
+& $python $runner --category parallel --samples 5 --temperature 0 --max-tokens 512
+& $python $runner --category irrelevance --samples 5 --temperature 0 --max-tokens 512
 ```
 
-真实评测前应确认 `.env` 中的 API 配置、模型是否支持原生 tools，以及这次调用是否会产生费用。
+真实运行前仍然需要确认模型支持原生 tools，并确认 Provider 的 `parallel_tool_calls` 参数可用。
 
-## 8. 下一步实验
+## 8. 真实小样本结果
 
-我会按以下顺序推进：
+使用 `deepseek-v4-flash`、`temperature=0`、每类 5 条样本，当前结果为：
+
+| 类别 | 结果 | 观察 |
+| --- | ---: | --- |
+| `simple_python` | 5/5 = 100% | 单函数调用闭环正常 |
+| `multiple` | 5/5 = 100% | 候选函数选择在这 5 条上正确 |
+| `parallel` | 4/5 = 80% | 4 条正确返回多个调用，1 条参数值不符合标准答案 |
+| `irrelevance` | 5/5 = 100% | 5 条都没有产生工具调用 |
+
+第一次扩展运行时，`float` 类型被原样发送给 Provider，导致部分请求在模型调用前被拒绝；修正为 JSON Schema 的 `number` 后，`multiple` 的 5 条样本全部通过。`parallel` 第一次还出现了 `max_tokens=256` 截断，增加到 512 后，调用数量问题消失。
+
+`parallel_3` 仍然失败：模型返回了 `normal human hemoglobin` 和 `rat hemoglobin`，而该 BFCL 标准答案要求精确的 `normal hemoglobin` 等字符串。这是一次真实的参数值错误，不是 Runner 格式错误，也说明 BFCL 对字符串值的判断是严格的。
+
+这组结果比单独的总准确率更有用：当前模型已经展示了并行调用和工具拒绝能力，但 parallel 的参数 grounding 仍然有可观察的失败。
+
+## 9. 这次扩展能证明什么
+
+如果四类少量样本都通过，可以说明当前模型和适配层至少完成了以下闭环：
+
+- 能在单调用任务中选择函数并填写参数；
+- 能在候选函数之间做基本的函数选择；
+- 能在同一轮返回多个并行调用；
+- 能在无关请求中拒绝调用工具；
+- 能让同一个结果格式穿过四类评分路径；
+- 能保存足够的逐样本证据供失败复盘。
+
+它仍然不能证明：
+
+- multi-turn、多步骤工具链正确；
+- 工具执行结果会被正确消费；
+- live 类别中的真实 API 行为正确；
+- Agent 能在任意工具集合上泛化；
+- 少量样本准确率可以代表 BFCL leaderboard 成绩。
+
+满分只能说明当前测试契约没有观察到失败，不能把它写成生产可靠性结论。
+
+## 10. 下一步与已知限制
+
+目前仍然保留几个明确限制：
+
+- Runner 仍是单轮评测，不支持 multi-turn；
+- `multiple` 与 `parallel` 的语义依赖 BFCL 官方 checker，不执行真实工具；
+- `irrelevance` 只检查是否产生调用，不评价自然语言拒答质量；
+- 还没有做全量类别的稳定性、多次重复和模型对比；
+- `evals/llm_evals/*` 仍被项目 `.gitignore` 忽略，脚本可运行但不会自然出现在 git status 中。
+
+下一组实验应记录每个类别的：
 
 ```text
-5 条 simple_python
-  → 20 条 simple_python
-  → 全量 simple_python
-  → multiple
-  → parallel
-  → irrelevance
+accuracy
+wrong function name
+wrong number of calls
+missing required parameter
+unexpected parameter
+invalid JSON arguments
+irrelevance false positive
+provider error
+finish_reason=length
+latency / token usage
 ```
 
-每一步都保留失败样本，而不是只记录一个总准确率。下一轮最值得观察的字段是：
-
-- wrong function name；
-- missing required parameter；
-- unexpected parameter；
-- invalid JSON arguments；
-- provider error；
-- finish reason 是否为 `length`；
-- latency 与 token usage 是否出现异常。
-
-真正进入复杂类别前，先让 `simple_python` 的结果文件和报告结构稳定下来。这样后续失败才更可能来自 Agent 能力，而不是数据读取、函数名转换或评分适配错误。
+这次扩展真正完成的不是“多写了三个 if”，而是把 Agent 的函数调用能力拆成了四个可以分别失败、分别解释、分别回归的行为契约。
