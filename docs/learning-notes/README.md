@@ -16,6 +16,7 @@
 
 - [第四章与第七章学习记录](./chapter4-and-7.md)
 - [章节示例到 pytest 的迁移索引](./test-migration.md)
+- [从工具调用到通用助手：BFCL 与 GAIA 性能评估](./agent-performance-evaluation.md)
 
 ## 一个可复制的记录模板
 

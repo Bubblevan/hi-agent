@@ -739,3 +739,32 @@ A2A 阶段再增加：
     MCP Host V1 已经完成门槛；
     下一步正式转向 A2A 的 Agent Card → Task → Artifact 切片；
     MCP 继续作为 Coding Agent 内部的工具协议。
+
+## 21. Mini-A2A V1 进度
+
+截至 2026-08-26，Mini-A2A 已完成第一条教学切片：
+
+- [x] AgentCard；
+- [x] Message 和 Part；
+- [x] Task 和 TaskStatus；
+- [x] Artifact；
+- [x] GetAgentCard；
+- [x] SendMessage；
+- [x] GetTask；
+- [x] SUBMITTED → WORKING → COMPLETED；
+- [x] WORKING → FAILED；
+- [x] terminal state transition guard；
+- [x] Message mode / Task mode stream guard；
+- [x] Coding Agent → MCP Host → Artifact bridge。
+
+当前仍然刻意不做：
+
+- [ ] 官方 A2A SDK differential test；
+- [ ] HTTP binding；
+- [ ] streaming over network；
+- [ ] authentication、JWS、OAuth、mTLS；
+- [ ] push notification、ListTasks、CancelTask；
+- [ ] multi-tenancy。
+
+下一阶段可以从 Mini-A2A V1 切换到官方 SDK 对照，再决定是否实现真实
+Research Agent → Coding Agent 委托，而不是继续扩展教学协议的边角功能。
