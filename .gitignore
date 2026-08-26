@@ -1,5 +1,6 @@
 # TEMP
 AGENTS.md
+evals/llm_evals/*
 
 # Python
 __pycache__/

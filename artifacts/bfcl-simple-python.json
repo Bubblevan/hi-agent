@@ -1,0 +1,145 @@
+{
+  "benchmark": "BFCL v4 simple_python",
+  "model": "deepseek-v4-flash",
+  "model_label": "hi-agent-baseline",
+  "scoring_profile": "gpt-4o-2024-11-20-FC",
+  "temperature": 0.0,
+  "max_tokens": 256,
+  "total_samples": 5,
+  "correct_samples": 5,
+  "accuracy": 1.0,
+  "result_path": "D:\\MyLab\\hi-agent\\evals\\llm_evals\\temp_gorilla\\berkeley-function-call-leaderboard\\result\\hi-agent-baseline\\non_live\\BFCL_v4_simple_python_result.json",
+  "cases": [
+    {
+      "id": "simple_python_0",
+      "index": 1,
+      "valid": true,
+      "prediction": [
+        {
+          "calculate_triangle_area": {
+            "base": 10,
+            "height": 5,
+            "unit": "units"
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": []
+      },
+      "content": "",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 440,
+        "completion_tokens": 124,
+        "total_tokens": 564
+      },
+      "latency_ms": 7320.17
+    },
+    {
+      "id": "simple_python_1",
+      "index": 2,
+      "valid": true,
+      "prediction": [
+        {
+          "math_factorial": {
+            "number": 5
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": [],
+        "error_type": "simple_function_checker:unclear"
+      },
+      "content": "I'll calculate the factorial of 5 for you.",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 377,
+        "completion_tokens": 87,
+        "total_tokens": 464
+      },
+      "latency_ms": 859.27
+    },
+    {
+      "id": "simple_python_2",
+      "index": 3,
+      "valid": true,
+      "prediction": [
+        {
+          "math_hypot": {
+            "x": 4,
+            "y": 5
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": [],
+        "error_type": "simple_function_checker:unclear"
+      },
+      "content": "",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 462,
+        "completion_tokens": 99,
+        "total_tokens": 561
+      },
+      "latency_ms": 1091.5
+    },
+    {
+      "id": "simple_python_3",
+      "index": 4,
+      "valid": true,
+      "prediction": [
+        {
+          "algebra_quadratic_roots": {
+            "a": 1,
+            "b": -3,
+            "c": 2
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": [],
+        "error_type": "simple_function_checker:unclear"
+      },
+      "content": "",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 440,
+        "completion_tokens": 108,
+        "total_tokens": 548
+      },
+      "latency_ms": 915.29
+    },
+    {
+      "id": "simple_python_4",
+      "index": 5,
+      "valid": true,
+      "prediction": [
+        {
+          "solve_quadratic_equation": {
+            "a": 2,
+            "b": 6,
+            "c": 5
+          }
+        }
+      ],
+      "score": {
+        "valid": true,
+        "error": [],
+        "error_type": "simple_function_checker:unclear"
+      },
+      "content": "",
+      "finish_reason": "tool_calls",
+      "usage": {
+        "prompt_tokens": 429,
+        "completion_tokens": 113,
+        "total_tokens": 542
+      },
+      "latency_ms": 747.32
+    }
+  ]
+}
