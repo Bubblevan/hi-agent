@@ -76,16 +76,26 @@ Hi-Agent 正在从单体 Agent、工具调用和上下文工程，继续走向 A
     │       ├── decisions\
     │       ├── experiments\
     │       └── reports\
-    ├── mini_mcp\
-    │   ├── protocol.py
-    │   ├── client.py
-    │   ├── server.py
-    │   └── tests\
-    ├── experiments\
-    │   └── protocol_lab\
-    │       ├── mcp\
-    │       ├── a2a\
-    │       └── anp\
+    ├── protocols\
+    │   ├── mcp\
+    │   │   ├── mini_mcp\
+    │   │   │   ├── protocol.py
+    │   │   │   ├── client.py
+    │   │   │   ├── server.py
+    │   │   │   └── mrtr.py
+    │   │   └── host\
+    │   │       ├── manager.py
+    │   │       ├── catalog.py
+    │   │       ├── adapter.py
+    │   │       ├── policy.py
+    │   │       └── host.py
+    │   └── a2a\
+    │       └── mini_a2a\
+    │           ├── models.py
+    │           ├── protocol.py
+    │           ├── client.py
+    │           ├── server.py
+    │           └── executor.py
     └── tests\
         └── protocol_lab\
 
@@ -136,7 +146,7 @@ Hi-Agent 正在从单体 Agent、工具调用和上下文工程，继续走向 A
 
 产物：
 
-- mini_mcp/
+- protocols/mcp/mini_mcp/
 - docs/protocol-lab/experiments/mini-mcp.md
 - tests/protocol_lab/test_mini_mcp.py
 

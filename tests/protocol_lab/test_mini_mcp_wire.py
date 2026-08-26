@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import unittest
 
-from mini_mcp import (
+from protocols.mcp.mini_mcp import (
     PROTOCOL_VERSION,
     CachePolicy,
     MiniMCPClient,
     MiniMCPServer,
 )
-from mini_mcp.protocol import (
+from protocols.mcp.mini_mcp.protocol import (
     HEADER_MISMATCH,
     META_CLIENT_CAPABILITIES,
     META_PROTOCOL_VERSION,
@@ -96,4 +96,3 @@ class MiniMCPRawWireContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

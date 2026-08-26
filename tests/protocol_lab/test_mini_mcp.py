@@ -4,14 +4,14 @@ import io
 import json
 import unittest
 
-from mini_mcp import (
+from protocols.mcp.mini_mcp import (
     PROTOCOL_VERSION,
     CachePolicy,
     MiniMCPClient,
     MiniMCPServer,
     run_stdio,
 )
-from mini_mcp.protocol import HEADER_MISMATCH, INVALID_PARAMS, make_request
+from protocols.mcp.mini_mcp.protocol import HEADER_MISMATCH, INVALID_PARAMS, make_request
 
 
 class MiniMCPTests(unittest.TestCase):

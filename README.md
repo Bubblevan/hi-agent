@@ -23,6 +23,12 @@ hi-agent/
 │   └── unit/evals/      # 评测实现的单元测试
 ├── evals/              # 评测实现和 CLI
 ├── docs/learning-notes/ # 个人学习过程、疑问和实验记录
+├── protocols/           # 协议实验与 Hi-Agent 集成
+│   ├── mcp/
+│   │   ├── mini_mcp/   # 手写 MCP wire contract / MRTR 学习夹具
+│   │   └── host/       # 官方 MCP SDK 之上的 Host 集成
+│   └── a2a/
+│       └── mini_a2a/   # A2A 五对象与 Task 生命周期学习夹具
 ├── main.py            # 主入口
 └── .env               # 环境变量配置
 ```

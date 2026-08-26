@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 from typing import Any
 
-from mini_mcp import MiniMCPHTTPServer, MiniMCPServer, run_stdio
+from protocols.mcp.mini_mcp import MiniMCPHTTPServer, MiniMCPServer, run_stdio
 
 
 def safe_path(root: Path, relative_path: str) -> Path:

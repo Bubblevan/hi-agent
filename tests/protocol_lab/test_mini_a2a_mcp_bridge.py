@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from protocols.a2a_lab import (
+from protocols.a2a.mini_a2a import (
     AgentCard,
     AgentSkill,
     CodingAgentExecutor,
@@ -13,7 +13,7 @@ from protocols.a2a_lab import (
     TaskState,
 )
 from protocols.mcp.host import MCPHost
-from protocols.mcp.manager import MCPServerConfig
+from protocols.mcp.host.manager import MCPServerConfig
 from tests.protocol_lab.test_mcp_host import make_server
 
 

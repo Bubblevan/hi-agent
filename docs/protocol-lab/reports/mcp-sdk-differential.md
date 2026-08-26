@@ -5,9 +5,9 @@ SDK：mcp 2.1.1
 
 ## 比较对象
 
-- Mini-MCP：D:\MyLab\hi-agent\mini_mcp
+- Mini-MCP：D:\MyLab\hi-agent\protocols\mcp\mini_mcp
 - 官方 SDK：mcp 2.1.1 的 Client 和 MCPServer
-- 相同能力：grep_code(query) → {"result": ["mini_mcp/protocol.py"]}
+- 相同能力：grep_code(query) → {"result": ["protocols/mcp/mini_mcp/protocol.py"]}
 
 ## 比较代码
 

@@ -30,7 +30,7 @@
     server = MCPServer(name="local-files", version="1.0.0")
 
     def grep_code(query: str) -> list[str]:
-        return [f"mini_mcp/{query}.py"]
+        return [f"protocols/mcp/mini_mcp/{query}.py"]
 
     server.tool()(grep_code)
 
@@ -116,4 +116,3 @@ Catalog 中的工具名为：
 
 下一步是补充官方 SDK differential report，然后把这条链路推广到多 Server
 和更真实的 Context Selector；完成后才进入 A2A Task/Artifact。
-

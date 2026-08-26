@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import unittest
 
-from mini_mcp import (
+from protocols.mcp.mini_mcp import (
     HMACRequestStateCodec,
     InputRequest,
     InputRequired,
     MiniMRTRClient,
     MiniMRTRServer,
 )
-from mini_mcp.protocol import (
+from protocols.mcp.mini_mcp.protocol import (
     INVALID_PARAMS,
     META_PROTOCOL_VERSION,
     PROTOCOL_VERSION,
@@ -206,4 +206,3 @@ class MiniMRTRTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

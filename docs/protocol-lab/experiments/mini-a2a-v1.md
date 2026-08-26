@@ -135,7 +135,7 @@ Artifact 里保存的是交付证据，而不只是 done：
 
     {
         "selected_tool": "filesystem.grep_code",
-        "result": "{\"result\": [\"mini_mcp/protocol.py\"]}",
+        "result": "{\"result\": [\"protocols/mcp/mini_mcp/protocol.py\"]}",
         "trace": {
             "status": "completed",
             "selected_by": "a2a_coding_executor"
@@ -168,4 +168,3 @@ Artifact 里保存的是交付证据，而不只是 done：
 
 下一步才是把 Mini-A2A 的五对象 contract 与官方 A2A SDK 做差分，再接入真实
 Research Agent → Coding Agent 的委托链。
-

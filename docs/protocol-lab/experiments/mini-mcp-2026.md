@@ -81,7 +81,7 @@
 
 Mini-MRTR 不修改 Mini-MCP 的基础 tools/call 主路径，单独位于：
 
-    mini_mcp/mrtr.py
+    protocols/mcp/mini_mcp/mrtr.py
 
 它演示以下 2026 多轮往返：
 

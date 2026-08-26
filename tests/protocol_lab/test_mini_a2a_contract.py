@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from protocols.a2a_lab import (
+from protocols.a2a.mini_a2a import (
     AgentCard,
     AgentSkill,
     Artifact,

@@ -5,9 +5,8 @@ from mcp.server import MCPServer
 
 from context.models import ContextBudget
 from protocols.mcp.host import MCPHost
-from protocols.mcp.manager import MCPServerConfig
-from protocols.mcp.manager import MCPManager
-from protocols.mcp.policy import MCPPolicy, MCPPolicyDenied
+from protocols.mcp.host.manager import MCPServerConfig, MCPManager
+from protocols.mcp.host.policy import MCPPolicy, MCPPolicyDenied
 
 
 def make_server():
@@ -17,7 +16,7 @@ def make_server():
         return {"path": path, "text": "protocol notes"}
 
     def grep_code(query: str) -> list[str]:
-        return [f"mini_mcp/{query}.py"]
+        return [f"protocols/mcp/mini_mcp/{query}.py"]
 
     def delete_file(path: str) -> str:
         return f"deleted {path}"
@@ -93,7 +92,7 @@ def test_host_executes_read_only_tool_and_records_trace():
         selection_reason="lexical overlap score=1",
     )
 
-    assert "mini_mcp/protocol.py" in execution.result
+    assert "protocols/mcp/mini_mcp/protocol.py" in execution.result
     assert execution.trace.status == "completed"
     assert execution.trace.policy_decision == "allow"
     assert execution.trace.result_type == "complete"

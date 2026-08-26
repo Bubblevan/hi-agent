@@ -45,7 +45,7 @@ from .mrtr import (
 )
 
 # __all__ 明确声明这个教学包希望暴露给外部使用者的公共 API。
-# 这样 `from mini_mcp import *` 时不会意外暴露内部辅助函数。
+# 这样 `from protocols.mcp.mini_mcp import *` 时不会意外暴露内部辅助函数。
 __all__ = [
     "JSONRPC_VERSION",
     "PROTOCOL_VERSION",

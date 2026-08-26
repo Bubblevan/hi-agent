@@ -155,12 +155,26 @@ Mini-MCP 现在是学习夹具，不是 Hi-Agent 的生产协议栈。
 
     D:\MyLab\hi-agent\
     ├── protocols\
-    │   └── mcp\
-    │       ├── manager.py
-    │       ├── adapter.py
-    │       ├── catalog.py
-    │       ├── policy.py
-    │       └── errors.py
+    │   ├── mcp\
+    │   │   ├── mini_mcp\
+    │   │   │   ├── protocol.py
+    │   │   │   ├── client.py
+    │   │   │   ├── server.py
+    │   │   │   └── mrtr.py
+    │   │   └── host\
+    │   │       ├── manager.py
+    │   │       ├── catalog.py
+    │   │       ├── adapter.py
+    │   │       ├── policy.py
+    │   │       └── host.py
+    │   │
+    │   └── a2a\
+    │       └── mini_a2a\
+    │           ├── models.py
+    │           ├── protocol.py
+    │           ├── client.py
+    │           ├── server.py
+    │           └── executor.py
     ├── tools\
     │   └── registry.py
     ├── context\
@@ -204,9 +218,9 @@ Mini-MCP 现在是学习夹具，不是 Hi-Agent 的生产协议栈。
 
 能用一句话解释：
 
-    Mini-MCP 用来学习和测试协议；
-    官方 SDK 用来承载 Host 集成；
-    Hi-Agent 自己实现的是 Manager、Adapter、Catalog、Selector、Policy 和 Trace。
+    protocols/mcp/mini_mcp 用来学习和测试协议；
+    官方 SDK 用来承载 protocols/mcp/host 集成；
+    Hi-Agent 自己实现的是 Host 的 Manager、Adapter、Catalog、Selector、Policy 和 Trace。
 
 ## 6. P1：盘点 Hi-Agent 现有接口
 
@@ -272,7 +286,7 @@ Manager 不负责工具选择、Prompt 注入、写操作确认或业务结果�
 
 ### 产物和完成标准
 
-- D:\MyLab\hi-agent\protocols\mcp\manager.py
+- D:\MyLab\hi-agent\protocols\mcp\host\manager.py
 - D:\MyLab\hi-agent\tests\protocol_lab\test_mcp_manager.py
 
 一个测试能够证明：Manager 连接本地 Server 后，可以得到 Server identity、工具列表和结构化调用结果。
@@ -320,7 +334,7 @@ canonical name 用于 Hi-Agent 内部路由，original name 用于发回 MCP Ser
 
 ### 产物和完成标准
 
-- D:\MyLab\hi-agent\protocols\mcp\catalog.py
+- D:\MyLab\hi-agent\protocols\mcp\host\catalog.py
 - D:\MyLab\hi-agent\tests\protocol_lab\test_mcp_catalog.py
 
 给定 canonical name，系统能稳定追溯到：

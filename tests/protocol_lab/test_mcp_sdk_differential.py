@@ -5,8 +5,8 @@ import asyncio
 from mcp import Client
 from mcp.server import MCPServer
 
-from mini_mcp import MiniMCPClient, MiniMCPServer
-from protocols.mcp.manager import MCPManager, MCPServerConfig
+from protocols.mcp.mini_mcp import MiniMCPClient, MiniMCPServer
+from protocols.mcp.host.manager import MCPManager, MCPServerConfig
 
 
 def make_mini_server():
@@ -14,7 +14,7 @@ def make_mini_server():
     server.register(
         "grep_code",
         lambda arguments: {
-            "result": [f"mini_mcp/{arguments['query']}.py"]
+            "result": [f"protocols/mcp/mini_mcp/{arguments['query']}.py"]
         },
         description="Search source code",
         input_schema={
@@ -30,7 +30,7 @@ def make_official_server():
     server = MCPServer(name="same-files", version="1.0.0")
 
     def grep_code(query: str) -> list[str]:
-        return [f"mini_mcp/{query}.py"]
+        return [f"protocols/mcp/mini_mcp/{query}.py"]
 
     server.tool()(grep_code)
     return server
@@ -75,5 +75,5 @@ def test_host_manager_normalizes_official_sdk_identity_and_call():
     assert discovered["serverInfo"]["name"] == "same-files"
     assert tools["tools"][0]["name"] == "grep_code"
     assert result.structured_content == {
-        "result": ["mini_mcp/protocol.py"]
+        "result": ["protocols/mcp/mini_mcp/protocol.py"]
     }

@@ -8,7 +8,7 @@ from typing import Iterable
 
 from context.models import ContextBudget, ContextItem
 from context.selector import select_items
-from protocols.mcp.catalog import MCPToolEntry
+from protocols.mcp.host.catalog import MCPToolEntry
 
 
 def _terms(text: str) -> set[str]:
