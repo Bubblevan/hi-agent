@@ -1,5 +1,11 @@
 """Mini-A2A teaching contract for Hi-Agent."""
 
+"""Mini-A2A 学习夹具。
+
+导出的对象代表最小 contract；真正的生产集成应放到 protocols.a2a.integration，
+并依赖官方 a2a-sdk，而不是继续扩张这个目录。
+"""
+
 from .client import MiniA2AClient
 from .executor import AgentExecutor, CodingAgentExecutor, StaticArtifactExecutor
 from .models import (
@@ -43,4 +49,3 @@ __all__ = [
     "transition_task",
     "validate_stream",
 ]
-

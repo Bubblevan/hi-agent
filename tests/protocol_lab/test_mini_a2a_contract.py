@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from protocols.a2a.mini_a2a import (
     AgentCard,
     AgentSkill,
@@ -89,3 +91,12 @@ def test_message_and_artifact_parts_support_text_and_data():
 
     assert text_message.text == "hello"
     assert artifact.parts[0].data == {"passed": 3}
+
+
+def test_agent_skill_requires_identity_and_description():
+    with pytest.raises(ValueError):
+        AgentSkill(id="", name="Coding", description="inspect code")
+    with pytest.raises(ValueError):
+        AgentSkill(id="coding", name="", description="inspect code")
+    with pytest.raises(ValueError):
+        AgentSkill(id="coding", name="Coding", description="")

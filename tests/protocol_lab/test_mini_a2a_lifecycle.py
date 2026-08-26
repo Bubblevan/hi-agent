@@ -77,10 +77,22 @@ def test_task_lifecycle_submitted_working_artifact_completed():
 def test_terminal_task_cannot_return_to_working():
     task = make_task()
     transition_task(task, TaskState.WORKING)
+    task.artifacts.append(StaticArtifactExecutor().artifact)
     transition_task(task, TaskState.COMPLETED)
 
     with pytest.raises(InvalidTaskTransition):
         transition_task(task, TaskState.WORKING)
+
+
+def test_completed_task_requires_artifact():
+    task = make_task()
+    transition_task(task, TaskState.WORKING)
+
+    with pytest.raises(
+        InvalidTaskTransition,
+        match="must contain at least one Artifact",
+    ):
+        transition_task(task, TaskState.COMPLETED)
 
 
 def test_failed_executor_reaches_failed_terminal_state():
