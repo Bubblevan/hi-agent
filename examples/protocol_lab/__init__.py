@@ -1,1 +1,1 @@
-"""Protocol lab examples."""
+"""Runnable protocol laboratory examples."""

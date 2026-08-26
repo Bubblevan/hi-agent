@@ -272,6 +272,17 @@ A2A 与 ANP 位于更高的任务协作层：
       ├── A2A Task Bridge
       └── ANP Discovery / Identity
 
+当前代码落点：
+
+    protocols/mcp/mini_mcp/
+        MCP 学习夹具
+    protocols/mcp/host/
+        官方 MCP SDK 之上的 Host runtime
+    protocols/a2a/mini_a2a/
+        A2A 对象与状态机学习夹具
+    protocols/a2a/integration/
+        官方 a2a-sdk v1 的 Server / Client 集成
+
 ## 9. 当前设计决策
 
 ### 决策一：先做 MCP Host，不做完整 MCP SDK
@@ -294,10 +305,20 @@ Mini-MCP 只验证：
 
 不把简单的 Python 服务注册表当成真实 ANP 网络。
 
-## 10. 下一步
+## 10. 当前进度与下一步
 
-1. 盘点 Hi-Agent 当前 ToolRegistry、Context Selector 和执行器；
-2. 完成 CLI / API / Function Calling / MCP / A2A / ANP 对比；
-3. 设计 Mini-MCP 的 read_file 和 grep_code；
-4. 为 Mini-MCP 写最小测试目标；
-5. 记录第一篇博客：从 CLI 到 MCP Host。
+已经完成：
+
+1. Mini-MCP wire contract、raw tests 和 Mini-MRTR；
+2. MCP Host → ToolRegistry → Context Selector → Policy → Trace；
+3. Mini-A2A 的 AgentCard、Message、Task、Artifact 和本地 stream；
+4. 官方 a2a-sdk v1 的 Agent Card discovery、JSON-RPC streaming、MCP bridge
+   和 GetTask；
+5. 对应的实验日志、差分报告和博客笔记。
+
+下一步：
+
+1. 增加真实 Research Agent → Coding Agent 的 delegated_by 语义；
+2. 在跨 Agent trace 中关联 task_id、artifact_id 和 remote_error；
+3. 再单独评估 cancellation、认证、push notification 和多租户；
+4. 最后再决定是否进入 ANP 的 discovery、DID 和 trust 实验。

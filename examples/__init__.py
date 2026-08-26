@@ -1,1 +1,1 @@
-"""Hi-Agent examples."""
+"""Runnable examples for Hi-Agent."""

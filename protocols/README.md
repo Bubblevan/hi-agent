@@ -11,8 +11,10 @@
     │   └── host/
     │       └── 官方 MCP SDK 之上的 Hi-Agent Host 集成
     └── a2a/
-        └── mini_a2a/
-            └── AgentCard、Message、Task、Artifact 教学 contract
+        ├── mini_a2a/
+        │   └── AgentCard、Message、Task、Artifact 教学 contract
+        └── integration/
+            └── 官方 a2a-sdk v1 的 Coding Agent Server / Research Agent Client
 
 ## 怎么判断代码应该放哪里
 
@@ -40,6 +42,10 @@ Policy 和 Host composition。
 ### protocols.a2a.mini_a2a
 
 Mini-A2A 学习夹具。它只覆盖五个核心对象、最小 Task 生命周期和本地 stream
-contract。官方 A2A SDK 接入应当在未来单独增加 adapter，而不是把 SDK 代码塞进
-mini_a2a。
+contract。它不承担网络传输和生产认证。
 
+### protocols.a2a.integration
+
+官方 A2A SDK 集成。这里使用 SDK 1.x 的 proto types、Agent Card route、
+JSON-RPC route、DefaultRequestHandler、TaskUpdater 和 Client；它把 Coding
+Agent 接到现有 MCP Host，但不把 SDK 实现复制到 mini_a2a。

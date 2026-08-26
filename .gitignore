@@ -1,7 +1,7 @@
 # TEMP
 AGENTS.md
-evals/llm_evals/gaia/*
-evals/llm_evals/temp_gorilla/*
+evals/llm_evals/gaia/
+evals/llm_evals/temp_gorilla/
 evals/llm_evals/__pycache__/*
 
 # Python

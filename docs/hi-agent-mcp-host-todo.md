@@ -7,7 +7,7 @@ date: 2026-08-26
 updated: 2026-08-26
 status: active
 visibility: public
-summary: Hi-Agent 从 Mini-MCP 协议学习转向 MCP Host、ToolRegistry 和 Context Selector 集成的可验证学习路线。先完成一个单 Server 端到端闭环，再进入 A2A。
+summary: Hi-Agent 从 Mini-MCP 协议学习转向 MCP Host、ToolRegistry 和 Context Selector 集成，并推进到官方 A2A v1 Task/Artifact 组合的可验证路线。
 topics: [Agent, MCP, Agent Harness, Tool Registry, Context Engineering, Roadmap]
 projects: [hi-agent]
 authors: [bubblevan]
@@ -19,7 +19,7 @@ authors: [bubblevan]
 
 状态：active
 
-当前主线不是继续扩展 Mini-MCP，也不是立刻跳到 A2A，而是把已经学过的 MCP wire contract 接到 Hi-Agent 的运行时：
+当前主线不是继续扩展 Mini-MCP，而是把已经学过的 MCP wire contract 接到 Hi-Agent 的运行时，并在 Host 门槛满足后进入官方 A2A v1 集成：
 
     官方 MCP SDK
           ↓
@@ -169,12 +169,15 @@ Mini-MCP 现在是学习夹具，不是 Hi-Agent 的生产协议栈。
     │   │       └── host.py
     │   │
     │   └── a2a\
-    │       └── mini_a2a\
-    │           ├── models.py
-    │           ├── protocol.py
-    │           ├── client.py
+    │       ├── mini_a2a\
+    │       │   ├── models.py
+    │       │   ├── protocol.py
+    │       │   ├── client.py
+    │       │   └── executor.py
+    │       └── integration\
     │           ├── server.py
-    │           └── executor.py
+    │           ├── client.py
+    │           └── __init__.py
     ├── tools\
     │   └── registry.py
     ├── context\
@@ -616,6 +619,10 @@ D:\MyLab\hi-agent\docs\protocol-lab\reports\mcp-sdk-differential.md
 
 ## 16. A2A 进入门槛和后续路线
 
+进入门槛满足后的详细执行清单见：
+
+    D:\MyLab\hi-agent\docs\hi-agent-a2a-todo.md
+
 ### 16.1 进入门槛
 
 开始 A2A 前，至少能独立解释：
@@ -674,7 +681,7 @@ A2A 之后再考虑 push notification、认证、version negotiation 和多 Agen
       Manager、Adapter、ToolRegistry 的第一条闭环；
 - [x] D:\MyLab\Hugo\bubblevan.github.io\content\blog\2026\2026-08-28-mcp-tool-catalog-selector.md
       Catalog、schema budget、dynamic tool selection；
-- [ ] D:\MyLab\Hugo\bubblevan.github.io\content\blog\2026\2026-08-29-hi-agent-mini-a2a.md
+- [x] D:\MyLab\Hugo\bubblevan.github.io\content\blog\2026\2026-08-29-hi-agent-mini-a2a.md
       A2A Task/Artifact 最小实验；
 - [ ] D:\MyLab\Hugo\bubblevan.github.io\content\blog\2026\2026-08-30-mcp-a2a-composition.md
       MCP inside agents、A2A between agents 的组合。
@@ -705,7 +712,8 @@ A2A 之后再考虑 push notification、认证、version negotiation 和多 Agen
 
 ## 19. A2A 门槛审计（2026-08-26）
 
-结论：已满足文档规定的 A2A 进入门槛，可以转向 A2A Task/Artifact 最小实验。
+结论：已满足文档规定的 A2A 进入门槛，并已完成 Mini-A2A 与官方 SDK 的第一条
+Task/Artifact 集成切片。
 
 - [x] MCP Host 单 Server 端到端闭环；
 - [x] ToolRegistry 动态注册和检索；
@@ -714,9 +722,13 @@ A2A 之后再考虑 push notification、认证、version negotiation 和多 Agen
 - [x] 官方 SDK differential test；
 - [x] 能区分 Tool result 和未来的 Agent Artifact；
 - [x] 博客包含实际代码、失败排查和协议八卦；
+- [x] 官方 a2a-sdk v1 Agent Card discovery；
+- [x] 官方 JSON-RPC streaming Server / Client；
+- [x] A2A Task → MCP Host → Artifact → GetTask；
 - [ ] 多 Server 真实部署；
 - [ ] OAuth、mTLS、multi-tenancy；
-- [ ] A2A streaming、push notification 和认证；
+- [x] A2A streaming；
+- [ ] push notification 和认证；
 - [ ] ANP discovery、DID 和 trust。
 
 门槛的含义不是 MCP Host 已经生产就绪，而是已经足够稳定，可以把下一个研究问题
@@ -751,7 +763,7 @@ A2A 阶段再增加：
 因此当前答案是：
 
     MCP Host V1 已经完成门槛；
-    下一步正式转向 A2A 的 Agent Card → Task → Artifact 切片；
+    下一步正式转向 Research Agent → Coding Agent 的 A2A 委托编排；
     MCP 继续作为 Coding Agent 内部的工具协议。
 
 ## 21. Mini-A2A V1 进度
@@ -773,12 +785,12 @@ A2A 阶段再增加：
 
 当前仍然刻意不做：
 
-- [ ] 官方 A2A SDK differential test；
-- [ ] HTTP binding；
-- [ ] streaming over network；
+- [x] 官方 A2A SDK integration contract test；
+- [x] HTTP binding；
+- [x] streaming over network；
 - [ ] authentication、JWS、OAuth、mTLS；
 - [ ] push notification、ListTasks、CancelTask；
 - [ ] multi-tenancy。
 
-下一阶段可以从 Mini-A2A V1 切换到官方 SDK 对照，再决定是否实现真实
-Research Agent → Coding Agent 委托，而不是继续扩展教学协议的边角功能。
+下一阶段可以在官方 SDK integration 之上实现真实 Research Agent → Coding Agent
+委托，而不是继续扩展教学协议的边角功能。

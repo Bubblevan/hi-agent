@@ -33,11 +33,15 @@
     │       ├── host.py
     │       └── __init__.py
     └── a2a/
-        └── mini_a2a/
-            ├── models.py
-            ├── protocol.py
+        ├── mini_a2a/
+        │   ├── models.py
+        │   ├── protocol.py
+        │   ├── client.py
+        │   ├── executor.py
+        │   └── __init__.py
+        └── integration/
+            ├── server.py
             ├── client.py
-            ├── executor.py
             └── __init__.py
 
 ## 三种职责
@@ -56,9 +60,13 @@
 
 它们不是官方 SDK 的替代品，也不是 Hi-Agent Agent loop 的默认依赖。
 
+官方 A2A SDK 集成位于 protocols/a2a/integration。它只拥有 adapter、route
+assembly 和官方类型的使用代码；它不把官方 SDK 的实现复制进学习夹具。
+
 ### 2. 官方 SDK 集成
 
     protocols/mcp/host
+    protocols/a2a/integration
 
 这里使用官方 MCP Python SDK，把外部 Server 接入 Hi-Agent。这里的代码拥有：
 
@@ -127,4 +135,3 @@ MCP Host 和未来 A2A adapter 可以调用它们，但不能反过来让通用�
       → tools/、context/、runtime/
 
 如果一个文件同时回答两个问题，应优先拆开，而不是继续向现有目录堆功能。
-

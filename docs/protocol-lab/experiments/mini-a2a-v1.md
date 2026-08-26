@@ -41,6 +41,7 @@ Part 只支持 text 和 data。Task 只支持 SUBMITTED、WORKING、COMPLETED、
     get_task(task_id)
 
 另加一个本地 stream 实验，不做 HTTP、认证、push notification 或 gRPC。
+官方 SDK 的网络集成另记在 a2a-sdk-integration.md，不反向污染这个学习夹具。
 
 ## 实际代码
 
@@ -166,5 +167,101 @@ Artifact 里保存的是交付证据，而不只是 done：
     OAuth / mTLS / JWS
     HTTP+JSON / gRPC
 
-下一步才是把 Mini-A2A 的五对象 contract 与官方 A2A SDK 做差分，再接入真实
-Research Agent → Coding Agent 的委托链。
+Mini-A2A 的职责到这里收口。下一步是使用官方 a2a-sdk，而不是继续为这个
+目录增加 HTTP、认证或更多状态。
+
+## 收口后的两个小修正
+
+为了让学习模型更严格，本轮还补了三个不变量：
+
+1. TaskState 先于 TaskStatus 定义，阅读顺序变成“先看状态集合，再看状态包装”；
+2. AgentSkill 的 id、name、description 都不能为空；
+3. transition_task 不允许没有 Artifact 的 Task 直接进入 COMPLETED。
+
+因此下面的代码会失败：
+
+    transition_task(task, TaskState.WORKING)
+    transition_task(task, TaskState.COMPLETED)
+
+错误是：
+
+    InvalidTaskTransition: COMPLETED task must contain at least one Artifact
+
+这不是在模拟官方 SDK 的所有校验，而是在学习夹具中把最重要的交付语义固定下来。
+
+## 官方 SDK 集成结果
+
+当前项目已增加：
+
+    protocols/a2a/integration/server.py
+    protocols/a2a/integration/client.py
+    tests/protocol_lab/test_a2a_sdk_integration.py
+
+运行：
+
+    .venv\Scripts\python.exe -m pytest tests\protocol_lab\test_a2a_sdk_integration.py -q
+
+输出摘要：
+
+    ..                                                               [100%]
+
+集成链路是：
+
+    /.well-known/agent-card.json
+        ↓
+    A2AResearchClient.connect()
+        ↓
+    official create_client()
+        ↓
+    SendStreamingMessage
+        ↓
+    Task(SUBMITTED)
+        ↓
+    TaskStatusUpdateEvent(WORKING)
+        ↓
+    TaskArtifactUpdateEvent(repository-research)
+        ↓
+    TaskStatusUpdateEvent(COMPLETED)
+        ↓
+    GetTask
+
+Artifact 的结构化证据包含：
+
+    {
+        "selected_tool": "filesystem.grep_code",
+        "trace": {
+            "selected_by": "official_a2a_coding_executor",
+            "status": "completed"
+        }
+    }
+
+这里有一个很容易被忽略的 SDK 八卦：官方 v1 的 streaming response 不再
+直接把各种 Python event 混成一个含糊的迭代器，而是统一成带 oneof payload
+的 StreamResponse。消费者通过 task、status_update、artifact_update 或
+message 判断当前事件类型。这正好把 Mini-A2A 中“Message mode 与 Task mode
+不能混用”的教学约束落到了真实 SDK 的 proto 表达上。
+
+另一个值得记住的细节是，官方 AgentExecutor 不是返回 Artifact 的普通函数。
+它接收 RequestContext 和 EventQueue，必须主动发布事件；TaskUpdater 负责
+生成状态时间戳、Artifact update 和终态。这说明 A2A Server 的核心职责是
+管理可观察的任务事件，而不是等待一个函数最后 return 一个字符串。
+
+## 现在的停止线
+
+Mini-A2A 与官方 SDK 都已经覆盖本阶段门槛。下一步价值不在继续手搓协议，而在：
+
+    Research Agent
+        → official A2A Client
+        → Coding Agent
+        → MCP Host
+        → Artifact
+
+暂不扩展：
+
+    OAuth / mTLS / signed Agent Card
+    push notification
+    multi-tenancy
+    gRPC
+    cancellation token 贯穿 MCP 长任务
+
+这些是后续工程专题，不应混入第一条核心学习切片。

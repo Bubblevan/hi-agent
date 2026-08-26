@@ -778,6 +778,128 @@ Level 3：5 条 smoke test
 
 不要一开始就运行全量，然后只得到一个无法解释的总分。
 
+## 9.5 P1：先给核心 evaluator 加上确定性护栏
+
+这次复盘时我发现一个容易被忽略的问题：Runner 能够成功运行，并不等于 Runner 自己的判断逻辑已经被保护起来。之前新增的 AIME、人工审核和 Pairwise 测试，覆盖的是新数据生成组件；BFCL 和 GAIA 才是本章最核心的 benchmark evaluator，因此也必须拥有不依赖真实模型的单元测试。
+
+### BFCL：测试协议转换层，不是测试模型分数
+
+BFCL Runner 里最值得单测的部分不是 API 请求，而是模型响应进入官方 checker 之前的兼容层：
+
+```text
+BFCL schema
+    ↓ _normalize_schema_types
+provider tools
+    ↓ build_provider_tools
+SDK message / dict message
+    ↓ extract_tool_result
+BFCL prediction
+    ↓ score_prediction
+official AST checker
+```
+
+新增的 `test_bfcl_simple_python.py` 固定了这些契约：
+
+```python
+def test_normalize_schema_types_maps_nested_provider_types():
+    assert normalized["type"] == "object"
+    assert normalized["properties"]["ratio"] == {"type": "number"}
+    assert normalized["properties"]["values"] == {"type": "array"}
+
+def test_wire_name_collision_is_rejected():
+    with pytest.raises(ValueError, match="collision"):
+        build_provider_tools([
+            {"name": "a.b"},
+            {"name": "a_b"},
+        ])
+```
+
+这里有三个重要知识点：BFCL 的 `dict`、`float`、`tuple` 需要显式映射为 JSON Schema 的 `object`、`number`、`array`；参数名本身可能叫 `type`，不能因为看到键名就把它当成 schema 元字段；`math.factorial` 变成 `math_factorial` 后可能和原本就叫 `math_factorial` 的函数冲突，主动报错比静默覆盖更安全。
+
+工具调用解析还要同时覆盖 SDK 对象和普通字典：
+
+```python
+message = SimpleNamespace(
+    tool_calls=[
+        SimpleNamespace(
+            function=SimpleNamespace(
+                name="math.factorial",
+                arguments='{"n": 5}',
+            )
+        )
+    ]
+)
+
+prediction, errors = extract_tool_result(
+    message,
+    {"math.factorial": "math_factorial"},
+)
+
+assert prediction == [{"math_factorial": {"n": 5}}]
+assert errors == []
+```
+
+### GAIA：答案 normalization 本身就是 evaluator 的一部分
+
+仓库原本已经有基础 GAIA 测试，但只覆盖了数字、冠词和简单列表。此次把 Chapter 12 中描述的 normalization 行为明确冻结为测试契约：
+
+```python
+assert normalize_answer("$1,234.56") == "1234.56"
+assert normalize_answer("The United States") == "united states"
+assert normalize_answer("Paris, London, Berlin") == "berlin,london,paris"
+assert normalize_answer("  12% ") == "12"
+```
+
+这些规则看起来像字符串清洗，实际上决定了 benchmark 的 correctness：
+
+```text
+模型答案
+  ↓ extract_answer
+答案文本
+  ↓ normalize_answer
+规范化答案
+  ↓ 与 Final answer 比较
+valid / invalid
+```
+
+GAIA 测试还补了三条边界：附件必须位于当前 split 目录内；带附件的问题必须在 prompt 中暴露 `read_attachment` 使用路径；Agent 异常和 test split 的不可评分样本必须被记录，而不是伪装成普通错误答案。尤其是 test split：
+
+```python
+assert item.final_answer is None
+```
+
+这保证本地运行不会把隐藏答案复制到结果 artifact 中。
+
+### fake client 与 fake agent 的价值
+
+这些测试没有调用真实 LLM：
+
+```text
+Fake SDK message → BFCL parser
+Fake agent response → GAIA evaluator
+临时目录 → attachment boundary / JSONL export
+```
+
+单元测试验证的是 evaluator 的确定性逻辑；真实模型运行验证的是模型加 harness 的综合行为。两者不能互相替代：只有真实运行没有单元测试，代码回归很难定位；只有单元测试没有真实运行，又无法知道模型是否会犯错。
+
+### 本轮验证结果
+
+运行：
+
+```powershell
+uv run pytest tests/unit/evals -q
+```
+
+结果：
+
+```text
+81 passed, 1 skipped
+```
+
+这次测试并没有证明 BFCL 或 GAIA 的 leaderboard 成绩提高了。它证明的是：schema 映射、函数名兼容、tool call 解析、无关请求拒答、答案规范化、附件边界、异常记录和隐藏答案保护，都有了可重复的回归护栏。
+
+这就是本轮 P1 的完成标准：先保护 evaluator，再相信 evaluator 输出的数字。
+
 ## 10. 罗盘式总结
 
 这次真正完成的不是“多写了两个 Runner”，而是建立了一套可以继续扩展的评测思维：

@@ -28,7 +28,8 @@ hi-agent/
 │   │   ├── mini_mcp/   # 手写 MCP wire contract / MRTR 学习夹具
 │   │   └── host/       # 官方 MCP SDK 之上的 Host 集成
 │   └── a2a/
-│       └── mini_a2a/   # A2A 五对象与 Task 生命周期学习夹具
+│       ├── mini_a2a/   # A2A 五对象与 Task 生命周期学习夹具
+│       └── integration/ # 官方 a2a-sdk v1 Server / Client 集成
 ├── main.py            # 主入口
 └── .env               # 环境变量配置
 ```
@@ -108,6 +109,70 @@ uv run pytest -m "not real_llm"
 $env:RUN_REAL_LLM_TESTS="1"
 uv run pytest tests/integration/test_context_real_provider.py -m real_llm -s
 ```
+
+## Protocol Lab：怎么开始和运行
+
+协议实验代码都在 protocols/，测试都在 tests/protocol_lab/。建议先使用项目
+自己的 .venv 或 uv run，不要使用 Conda base 环境：
+
+~~~bash
+# 运行全部协议实验
+uv run pytest tests/protocol_lab -q
+
+# 只看官方 A2A v1 integration
+uv run pytest tests/protocol_lab/test_a2a_sdk_integration.py -q
+
+# 显示 A2A 事件顺序、MCP 选择和 trace
+uv run pytest tests/protocol_lab/test_a2a_sdk_integration.py -q -s
+~~~
+
+如果 uv 的默认缓存目录没有写权限：
+
+~~~bash
+uv --cache-dir .uv-cache run pytest tests/protocol_lab -q
+~~~
+
+常用的分层运行方式：
+
+~~~bash
+# Mini-MCP wire contract
+uv run pytest tests/protocol_lab/test_mini_mcp.py tests/protocol_lab/test_mini_mcp_wire.py -q
+
+# Mini-MRTR
+uv run pytest tests/protocol_lab/test_mrtr.py -q
+
+# MCP Host：Manager → Catalog → Selector → Policy → Trace
+uv run pytest tests/protocol_lab/test_mcp_host.py -q
+
+# Mini-A2A：对象、状态机、stream 和 MCP bridge
+uv run pytest tests/protocol_lab/test_mini_a2a_contract.py tests/protocol_lab/test_mini_a2a_lifecycle.py tests/protocol_lab/test_mini_a2a_stream.py tests/protocol_lab/test_mini_a2a_mcp_bridge.py -q
+~~~
+
+### 官方 A2A roundtrip 示例
+
+这个示例在进程内启动 Starlette ASGI app，通过官方 A2A Client 读取 Agent Card，
+发送一个 streaming Task，再读取 Artifact 和最终 Task：
+
+~~~bash
+uv run python -m examples.protocol_lab.official_a2a_roundtrip
+~~~
+
+预期输出形状：
+
+~~~text
+[card] hi-agent-coder
+[events] task -> status_update -> artifact_update -> status_update
+[artifact] repository-research
+[selected_tool] filesystem.grep_code
+[task] completed
+~~~
+
+### 先读哪几份笔记
+
+1. docs/protocol-lab/protocol-map.md：协议边界；
+2. docs/protocol-lab/experiments/mini-a2a-v1.md：手写 A2A 学习夹具；
+3. docs/protocol-lab/experiments/a2a-sdk-integration.md：官方 SDK 运行结果；
+4. docs/hi-agent-a2a-todo.md：A2A 阶段 TODO、验收标准和退出条件。
 
 ## 支持的模型提供商
 
